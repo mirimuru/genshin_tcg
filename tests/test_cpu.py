@@ -1,26 +1,26 @@
 from engine.actions import ActionType
+from engine.game import Game
 from engine.state import CharacterState, Element, GameState, PlayerState
 from players.cpu import CpuPlayer
 
 
-def make_player(player_id=0):
-    return PlayerState(
-        player_id=player_id,
-        characters=[
-            CharacterState("キャラクター1", Element.PYRO),
-            CharacterState("キャラクター2", Element.HYDRO),
-            CharacterState("キャラクター3", Element.CRYO),
-        ],
-    )
+def make_player(player_id):
+    characters = [
+        CharacterState("Character 1", Element.PYRO),
+        CharacterState("Character 2", Element.HYDRO),
+        CharacterState("Character 3", Element.CRYO),
+    ]
+    return PlayerState(player_id, characters)
 
 
 def make_game():
-    return GameState([make_player(0), make_player(1)])
+    state = GameState([make_player(0), make_player(1)])
+    return Game(state)
 
 
 def test_cpu_uses_burst_when_energy_is_full():
     game = make_game()
-    game.players[0].active_character.energy = 2
+    game.state.players[0].active_character.energy = 2
 
     action = CpuPlayer().choose_action(game, 0)
 
@@ -30,7 +30,8 @@ def test_cpu_uses_burst_when_energy_is_full():
 
 def test_cpu_switches_when_active_character_is_defeated():
     game = make_game()
-    game.players[0].active_character.receive_damage(999)
+
+    game.state.players[0].active_character.receive_damage(999)
 
     action = CpuPlayer().choose_action(game, 0)
 
@@ -40,7 +41,8 @@ def test_cpu_switches_when_active_character_is_defeated():
 
 def test_cpu_switches_from_low_hp_character():
     game = make_game()
-    game.players[0].active_character.receive_damage(8)
+
+    game.state.players[0].active_character.receive_damage(8)
 
     action = CpuPlayer().choose_action(game, 0)
 
@@ -59,7 +61,8 @@ def test_cpu_uses_skill_when_no_higher_priority_action_exists():
 
 def test_cpu_prefers_healthiest_switch_target():
     game = make_game()
-    player = game.players[0]
+    player = game.state.players[0]
+
     player.active_character.receive_damage(8)
     player.characters[1].receive_damage(5)
 
