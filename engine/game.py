@@ -42,9 +42,6 @@ class Game:
         if reaction is ElementalReaction.FROZEN and not self._is_frozen(target_character):
             target_character.statuses.append("frozen")
 
-        if reaction is ElementalReaction.BURNING and "burning" not in target_character.statuses:
-            target_character.statuses.append("burning")
-
         dendro_core_boost = 0
         if element in {Element.PYRO, Element.ELECTRO} and attacker.dendro_core > 0:
             attacker.dendro_core -= 1
@@ -55,6 +52,12 @@ class Game:
 
         if reaction is ElementalReaction.OVERLOADED and not target.defeated:
             target.must_switch = True
+
+        if reaction is ElementalReaction.BURNING:
+            attacker.summons["burning_flame"] = min(
+                2,
+                attacker.summons.get("burning_flame", 0) + 1,
+            )
 
         total_damage = amount + reaction_bonus + dendro_core_boost + frozen_break_bonus
         if reaction is not None:
@@ -383,15 +386,24 @@ class Game:
                 if "frozen" in character.statuses:
                     character.statuses.remove("frozen")
 
-    def _resolve_burning_statuses(self) -> None:
-        """燃焼状態のキャラクターへラウンド終了時に1ダメージを与える。"""
+    def _resolve_burning_summons(self) -> None:
+        """燃焼烈火召喚物の使用回数を消費し、相手のアクティブに1炎ダメージを与える。"""
         for player in self.state.players:
-            for character in player.characters:
-                if "burning" not in character.statuses:
-                    continue
-                if character.alive:
-                    character.receive_damage(1)
-                character.statuses.remove("burning")
+            usages = player.summons.get("burning_flame", 0)
+            if usages <= 0:
+                continue
+
+            opponent_id = 1 - player.player_id
+            self.deal_damage(player.player_id, opponent_id, 1, Element.PYRO)
+
+            usages -= 1
+            if usages > 0:
+                player.summons["burning_flame"] = usages
+            else:
+                del player.summons["burning_flame"]
+
+            if self.state.game_over:
+                return
 
     def _end_round(self, player_id: int) -> None:
         player = self.state.players[player_id]
@@ -399,7 +411,7 @@ class Game:
         opponent_id = 1 - player_id
         opponent = self.state.players[opponent_id]
         if opponent.has_ended_round:
-            self._resolve_burning_statuses()
+            self._resolve_burning_summons()
             self._clear_frozen_statuses()
             self.state.check_game_over()
             if self.state.game_over:
