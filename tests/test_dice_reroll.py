@@ -57,7 +57,7 @@ def test_roll_phase_exposes_reroll_actions():
 
 def test_first_player_rerolls_then_second_player_rerolls_and_action_phase_starts():
     game = make_game(random.Random(0))
-    first = Action(0, ActionType.REROLL_DICE, target=(DiceType.PYRO,))
+    first = Action(0, ActionType.REROLL_DICE, target=(DiceType.CRYO,))
     second = Action(1, ActionType.REROLL_DICE, target=())
 
     game.execute_action(first)
