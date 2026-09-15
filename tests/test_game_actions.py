@@ -290,6 +290,67 @@ def test_deal_damage_applies_electro_charged_bonus():
     assert target.elemental_aura is None
 
 
+def test_electro_charged_deals_one_damage_to_other_alive_characters():
+    game = make_game()
+    target_player = game.state.players[1]
+    target = target_player.active_character
+    target.elemental_aura = Element.HYDRO
+    reserve_1 = target_player.characters[1]
+    reserve_2 = target_player.characters[2]
+    hp_1 = reserve_1.hp
+    hp_2 = reserve_2.hp
+
+    game.deal_damage(0, 1, 2, Element.ELECTRO)
+
+    assert target.hp == 7
+    assert reserve_1.hp == hp_1 - 1
+    assert reserve_2.hp == hp_2 - 1
+
+
+def test_superconduct_deals_one_damage_to_other_alive_characters():
+    game = make_game()
+    target_player = game.state.players[1]
+    target = target_player.active_character
+    target.elemental_aura = Element.CRYO
+    reserve_1 = target_player.characters[1]
+    reserve_2 = target_player.characters[2]
+    hp_1 = reserve_1.hp
+    hp_2 = reserve_2.hp
+
+    game.deal_damage(0, 1, 2, Element.ELECTRO)
+
+    assert target.hp == 7
+    assert reserve_1.hp == hp_1 - 1
+    assert reserve_2.hp == hp_2 - 1
+
+
+def test_reaction_penetration_does_not_damage_defeated_reserve_character():
+    game = make_game()
+    target_player = game.state.players[1]
+    target = target_player.active_character
+    target.elemental_aura = Element.HYDRO
+    defeated_reserve = target_player.characters[1]
+    defeated_reserve.receive_damage(999)
+    hp_2 = target_player.characters[2].hp
+
+    game.deal_damage(0, 1, 2, Element.ELECTRO)
+
+    assert defeated_reserve.hp == 0
+    assert target_player.characters[2].hp == hp_2 - 1
+
+
+def test_dendro_core_is_not_consumed_by_non_pyro_or_electro_damage():
+    game = make_game()
+    attacker = game.state.players[0]
+    target = game.state.players[1].active_character
+    attacker.dendro_core = 1
+    target.elemental_aura = None
+
+    game.deal_damage(0, 1, 1, Element.HYDRO)
+
+    assert attacker.dendro_core == 1
+
+
 def test_deal_damage_applies_elemental_aura_when_no_reaction_occurs():
     game = make_game()
     target = game.state.players[1].active_character
