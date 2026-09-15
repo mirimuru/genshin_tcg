@@ -56,15 +56,18 @@ def test_burning_damage_can_end_the_game():
     target = target_player.active_character
     target.elemental_aura = Element.DENDRO
     target.receive_damage(8)
+    target_player.characters[1].receive_damage(999)
+    target_player.characters[2].receive_damage(999)
 
     game.deal_damage(0, 1, 1, Element.PYRO)
     assert "burning" in target.statuses
+    assert target.hp == 1
+    assert not game.state.game_over
+
+    game.execute_action(Action(0, ActionType.END_ROUND))
+    game.execute_action(Action(1, ActionType.END_ROUND))
+
     assert target.hp == 0
-
-    for character in target_player.characters[1:]:
-        character.receive_damage(999)
-
-    game.state.check_game_over()
     assert game.state.game_over
 
 
