@@ -26,6 +26,11 @@ class Game:
             target_character.statuses.remove("frozen")
             frozen_break_bonus = 2
 
+        # 既存の原激化フィールドがある場合は、草・雷ダメージ1回分を消費する。
+        # 超激化を起こしたそのダメージにはフィールドの+1を重ねない。
+        had_catalyzing_field = attacker.catalyzing_field > 0
+        catalyzing_field_boost = 0
+
         reaction = None
         reaction_bonus = 0
         if target_character.elemental_aura is not None:
@@ -39,20 +44,16 @@ class Game:
         elif element is not Element.PHYSICAL:
             target_character.elemental_aura = element
 
-        if reaction is ElementalReaction.FROZEN and not self._is_frozen(target_character):
-            target_character.statuses.append("frozen")
-
-        # 原激化フィールドは草・雷の通常のダメージインスタンスを1増加させる。
-        # 超激化そのものを発生させる攻撃には適用せず、反応後に生成された
-        # フィールドから次の草・雷ダメージへ適用する。
-        catalyzing_field_boost = 0
         if (
-            reaction is not ElementalReaction.QUICKEN
-            and element in {Element.DENDRO, Element.ELECTRO}
+            element in {Element.DENDRO, Element.ELECTRO}
             and attacker.catalyzing_field > 0
         ):
             attacker.catalyzing_field -= 1
-            catalyzing_field_boost = 1
+            if reaction is not ElementalReaction.QUICKEN:
+                catalyzing_field_boost = 1
+
+        if reaction is ElementalReaction.FROZEN and not self._is_frozen(target_character):
+            target_character.statuses.append("frozen")
 
         dendro_core_boost = 0
         if element in {Element.PYRO, Element.ELECTRO} and attacker.dendro_core > 0:
@@ -71,10 +72,10 @@ class Game:
                 attacker.summons.get("burning_flame", 0) + 1,
             )
 
-        # 超激化は原激化フィールドを2回分生成する。既存フィールドがあっても
-        # 最大2回分までに制限する。
-        if reaction is ElementalReaction.QUICKEN:
-            attacker.catalyzing_field = min(2, attacker.catalyzing_field + 2)
+        # 原激化フィールドが存在しない状態で超激化を起こした場合のみ生成する。
+        # 既存フィールドは反応によって更新・リセットせず、残り使用回数を維持する。
+        if reaction is ElementalReaction.QUICKEN and not had_catalyzing_field:
+            attacker.catalyzing_field = 2
 
         total_damage = (
             amount
