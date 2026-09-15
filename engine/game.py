@@ -57,6 +57,15 @@ class Game:
             f"{total_damage}ダメージ（{element.value}）"
         )
         target_character.receive_damage(total_damage)
+
+        # 感電・超伝導は対象以外の生存キャラクターにも1ダメージを与える。
+        # 貫通ダメージでは元素反応を発生させず、元素付着も行わない。
+        if reaction in {
+            ElementalReaction.ELECTRO_CHARGED,
+            ElementalReaction.SUPERCONDUCT,
+        }:
+            self._deal_reaction_penetration_damage(target, target_id)
+
         print(f"{target_character.name}のHP：{target_character.hp}/{target_character.max_hp}")
         self.state.check_game_over()
 
@@ -83,6 +92,14 @@ class Game:
             return 1
 
         return 0
+
+    @staticmethod
+    def _deal_reaction_penetration_damage(target, target_id: int) -> None:
+        """感電・超伝導の追加1ダメージを控えキャラクターへ与える。"""
+        for index, character in enumerate(target.characters):
+            if index == target.active_character_index or not character.alive:
+                continue
+            character.receive_damage(1)
 
     def normal_attack(self, player_id: int):
         character = self.state.players[player_id].active_character
