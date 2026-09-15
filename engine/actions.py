@@ -5,6 +5,7 @@ from engine.dice import DiceType
 
 
 class ActionType(Enum):
+    REROLL_DICE = "reroll_dice"
     NORMAL_ATTACK = "normal_attack"
     ELEMENTAL_SKILL = "elemental_skill"
     ELEMENTAL_BURST = "elemental_burst"
@@ -18,5 +19,5 @@ class ActionType(Enum):
 class Action:
     player_id: int
     action_type: ActionType
-    target: int | DiceType | None = None
+    target: int | DiceType | tuple[DiceType, ...] | None = None
     card_id: str | None = None

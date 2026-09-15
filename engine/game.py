@@ -1,15 +1,17 @@
+from collections import Counter
 from collections.abc import Sequence
 import random
 
 from engine.actions import Action, ActionType
 from engine.dice import DicePool, DiceType
-from engine.state import Element
+from engine.state import Element, GamePhase
 
 
 class Game:
     def __init__(self, state, rng: random.Random | None = None):
         self.state = state
         self.rng = rng if rng is not None else random.Random()
+        self._start_roll_phase()
 
     def deal_damage(self, attacker_id: int, target_id: int, amount: int, element: Element):
         attacker = self.state.players[attacker_id]
@@ -61,6 +63,11 @@ class Game:
         if player.defeated:
             return []
 
+        if self.state.phase is GamePhase.ROLL:
+            if player.has_rerolled:
+                return []
+            return self._get_reroll_actions(player_id)
+
         if player.requires_switch:
             return [
                 Action(player_id, ActionType.SWITCH_CHARACTER, target=index)
@@ -111,6 +118,15 @@ class Game:
             raise ValueError("現在のプレイヤーではありません")
 
         player = self.state.players[player_id]
+        if self.state.phase is GamePhase.ROLL:
+            if action.action_type is not ActionType.REROLL_DICE:
+                raise ValueError("ロールフェーズではリロールのみ実行できます")
+            self._execute_reroll(action)
+            return
+
+        if action.action_type is ActionType.REROLL_DICE:
+            raise ValueError("アクションフェーズではリロールできません")
+
         if player.requires_switch and action.action_type is not ActionType.SWITCH_CHARACTER:
             raise ValueError("戦闘不能のため強制交代が必要です")
 
@@ -180,6 +196,41 @@ class Game:
             actions.append(self.step(players))
         return actions
 
+    def _get_reroll_actions(self, player_id: int) -> list[Action]:
+        dice = self.state.players[player_id].dice.as_list()
+        actions = []
+        for mask in range(1 << len(dice)):
+            selected = tuple(dice[index] for index in range(len(dice)) if mask & (1 << index))
+            actions.append(Action(player_id, ActionType.REROLL_DICE, target=selected))
+        return actions
+
+    def _execute_reroll(self, action: Action) -> None:
+        player = self.state.players[action.player_id]
+        if player.has_rerolled:
+            raise ValueError("このラウンドではすでにリロール済みです")
+        if not isinstance(action.target, tuple):
+            raise ValueError("リロール対象のダイスがタプルで指定されていません")
+        if any(not isinstance(dice_type, DiceType) or dice_type is DiceType.ANY for dice_type in action.target):
+            raise ValueError("リロール対象が不正です")
+
+        player.dice.reroll(Counter(action.target), self.rng)
+        player.has_rerolled = True
+
+        opponent_id = 1 - action.player_id
+        opponent = self.state.players[opponent_id]
+        if opponent.has_rerolled:
+            self.state.phase = GamePhase.ACTION
+            self.state.current_player = 0
+        else:
+            self.state.current_player = opponent_id
+
+    def _start_roll_phase(self) -> None:
+        self.state.phase = GamePhase.ROLL
+        self.state.current_player = 0
+        for player in self.state.players:
+            player.dice = DicePool.roll(self.rng)
+            player.has_rerolled = False
+
     def _execute_switch(self, action: Action) -> None:
         if action.target is None:
             raise ValueError("交代先が指定されていません")
@@ -233,9 +284,7 @@ class Game:
             self.state.round_number += 1
             self.state.players[0].has_ended_round = False
             self.state.players[1].has_ended_round = False
-            self.state.players[0].dice = DicePool.roll(self.rng)
-            self.state.players[1].dice = DicePool.roll(self.rng)
-            self.state.current_player = 0
+            self._start_roll_phase()
             return
         self.state.current_player = opponent_id
 

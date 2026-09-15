@@ -1,6 +1,5 @@
-import pytest
-
-from engine.actions import ActionType
+from engine.actions import Action, ActionType
+from engine.dice import DicePool
 from engine.game import Game
 from engine.state import CharacterState, Element, GameState, PlayerState
 
@@ -10,7 +9,12 @@ def make_game():
         PlayerState(0, [CharacterState("A", Element.PYRO), CharacterState("B", Element.HYDRO), CharacterState("C", Element.CRYO)]),
         PlayerState(1, [CharacterState("X", Element.PYRO), CharacterState("Y", Element.HYDRO), CharacterState("Z", Element.CRYO)]),
     ]
-    return Game(GameState(players))
+    game = Game(GameState(players))
+    game.execute_action(Action(0, ActionType.REROLL_DICE, target=()))
+    game.execute_action(Action(1, ActionType.REROLL_DICE, target=()))
+    game.state.players[0].dice = DicePool.default()
+    game.state.players[1].dice = DicePool.default()
+    return game
 
 
 def action_types(actions):

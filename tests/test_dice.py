@@ -9,20 +9,23 @@ from engine.state import CharacterState, Element, GameState, PlayerState
 from players.cpu import CpuPlayer
 
 
-def make_game(rng=None):
+def make_game(rng=None, prepare_action=True):
     players = [
         PlayerState(0, [CharacterState("A", Element.PYRO), CharacterState("B", Element.HYDRO), CharacterState("C", Element.CRYO)]),
         PlayerState(1, [CharacterState("X", Element.PYRO), CharacterState("Y", Element.HYDRO), CharacterState("Z", Element.CRYO)]),
     ]
-    return Game(GameState(players), rng=rng)
+    game = Game(GameState(players), rng=rng)
+    if prepare_action:
+        game.execute_action(Action(0, ActionType.REROLL_DICE, target=()))
+        game.execute_action(Action(1, ActionType.REROLL_DICE, target=()))
+    return game
 
 
-def test_default_dice_pool_contains_eight_omni_dice():
+def test_default_dice_pool_contains_eight_dice():
     game = make_game()
     dice = game.state.players[0].dice
     assert isinstance(dice, DicePool)
     assert dice.total == 8
-    assert dice.count(DiceType.OMNI) == 8
 
 
 def test_dice_pool_can_pay_and_consumes_cost():
@@ -98,10 +101,13 @@ def test_cpu_ends_round_when_no_action_can_afford_dice():
 
 
 def test_round_end_rolls_new_elemental_dice():
-    game = make_game(random.Random(0))
+    game = make_game(random.Random(0), prepare_action=False)
+    game.rng = random.Random(0)
     game.state.players[0].dice = DicePool({DiceType.OMNI: 1})
     game.state.players[1].dice = DicePool({DiceType.OMNI: 1})
 
+    game.execute_action(Action(0, ActionType.REROLL_DICE, target=()))
+    game.execute_action(Action(1, ActionType.REROLL_DICE, target=()))
     game.execute_action(Action(0, ActionType.END_ROUND))
     game.execute_action(Action(1, ActionType.END_ROUND))
 

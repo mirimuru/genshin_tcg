@@ -1,4 +1,6 @@
 from engine.actions import Action, ActionType
+from engine.dice import DiceType
+from engine.state import GamePhase
 
 
 class CpuPlayer:
@@ -11,6 +13,9 @@ class CpuPlayer:
             legal_actions = game.get_legal_actions(player_id)
         if not legal_actions:
             return Action(player_id, ActionType.END_ROUND)
+
+        if game.state.phase is GamePhase.ROLL:
+            return self._choose_reroll(game, player_id, legal_actions)
 
         def find(action_type):
             return next((action for action in legal_actions if action.action_type is action_type), None)
@@ -42,6 +47,21 @@ class CpuPlayer:
         if tuning is not None:
             return tuning
         return find(ActionType.END_ROUND) or legal_actions[0]
+
+    @staticmethod
+    def _choose_reroll(game, player_id: int, legal_actions) -> Action:
+        player = game.state.players[player_id]
+        target_dice = game._element_to_dice_type(player.active_character.element)
+
+        def score(action):
+            selected = action.target or ()
+            return sum(
+                1
+                for dice_type in selected
+                if dice_type not in (DiceType.OMNI, target_dice)
+            )
+
+        return max(legal_actions, key=score)
 
     @staticmethod
     def _best_switch_action(player, actions):

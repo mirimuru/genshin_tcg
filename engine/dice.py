@@ -64,6 +64,30 @@ class DicePool:
     def count(self, dice_type: DiceType) -> int:
         return self._dice[dice_type]
 
+    def as_list(self) -> list[DiceType]:
+        """現在のダイスを個々の要素として列挙する。"""
+        return [dice_type for dice_type in self.ROLLABLE_DICE_TYPES for _ in range(self._dice[dice_type])]
+
+    def reroll(self, selected: Mapping[DiceType, int], rng: random.Random | None = None) -> None:
+        """指定したダイスだけを1回分ランダムに振り直す。"""
+        selected_counter = Counter(selected)
+        if any(not isinstance(dice_type, DiceType) for dice_type in selected_counter):
+            raise TypeError("selected dice must be DiceType values")
+        if any(count < 0 for count in selected_counter.values()):
+            raise ValueError("selected dice count must not be negative")
+        if DiceType.ANY in selected_counter:
+            raise ValueError("任意ダイスはリロール対象にできません")
+        if any(self._dice[dice_type] < count for dice_type, count in selected_counter.items()):
+            raise ValueError("選択したダイスが所持数を超えています")
+
+        for dice_type, count in selected_counter.items():
+            self._dice[dice_type] -= count
+
+        chooser = rng if rng is not None else random
+        for _ in range(sum(selected_counter.values())):
+            self._dice[chooser.choice(self.ROLLABLE_DICE_TYPES)] += 1
+        self._remove_zeroes()
+
     def harmonize(self, source: DiceType, target: DiceType) -> None:
         """不要な元素ダイス1個を、指定した元素ダイス1個へ変換する。"""
         if source is DiceType.OMNI or target is DiceType.OMNI:
