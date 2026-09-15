@@ -1,4 +1,5 @@
 from engine.actions import Action, ActionType
+from engine.dice import DiceType
 from engine.state import GamePhase
 
 
@@ -54,7 +55,11 @@ class CpuPlayer:
 
         def score(action):
             selected = action.target or ()
-            return sum(1 for dice_type in selected if dice_type not in (target_dice,))
+            return sum(
+                1
+                for dice_type in selected
+                if dice_type not in (DiceType.OMNI, target_dice)
+            )
 
         return max(legal_actions, key=score)
 
