@@ -56,6 +56,13 @@ def test_run_stops_at_max_actions_after_round_transition():
 
     class EndRoundPlayer:
         def choose_action(self, game, player_id, legal_actions=None):
+            if game.state.phase is GamePhase.ROLL:
+                return next(
+                    action
+                    for action in legal_actions
+                    if action.action_type is ActionType.REROLL_DICE
+                    and action.target == ()
+                )
             return next(action for action in legal_actions if action.action_type is ActionType.END_ROUND)
 
     actions = game.run([EndRoundPlayer(), EndRoundPlayer()], max_actions=4)
