@@ -42,6 +42,9 @@ class Game:
         if reaction is ElementalReaction.FROZEN and not self._is_frozen(target_character):
             target_character.statuses.append("frozen")
 
+        if reaction is ElementalReaction.BURNING and "burning" not in target_character.statuses:
+            target_character.statuses.append("burning")
+
         dendro_core_boost = 0
         if element in {Element.PYRO, Element.ELECTRO} and attacker.dendro_core > 0:
             attacker.dendro_core -= 1
@@ -380,13 +383,27 @@ class Game:
                 if "frozen" in character.statuses:
                     character.statuses.remove("frozen")
 
+    def _resolve_burning_statuses(self) -> None:
+        """燃焼状態のキャラクターへラウンド終了時に1ダメージを与える。"""
+        for player in self.state.players:
+            for character in player.characters:
+                if "burning" not in character.statuses:
+                    continue
+                if character.alive:
+                    character.receive_damage(1)
+                character.statuses.remove("burning")
+
     def _end_round(self, player_id: int) -> None:
         player = self.state.players[player_id]
         player.has_ended_round = True
         opponent_id = 1 - player_id
         opponent = self.state.players[opponent_id]
         if opponent.has_ended_round:
+            self._resolve_burning_statuses()
             self._clear_frozen_statuses()
+            self.state.check_game_over()
+            if self.state.game_over:
+                return
             self.state.round_number += 1
             self.state.players[0].has_ended_round = False
             self.state.players[1].has_ended_round = False
