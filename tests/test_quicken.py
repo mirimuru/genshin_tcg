@@ -36,8 +36,15 @@ def test_quicken_creates_two_usage_catalyzing_field():
 
 def test_catalyzing_field_boosts_next_two_dendro_or_electro_damage_instances():
     game = make_game()
-    target = game.state.players[1].active_character
+    target_player = game.state.players[1]
+    target = target_player.active_character
     target.elemental_aura = Element.ELECTRO
+
+    # ゲーム終了条件は3キャラクター全員の戦闘不能なので、
+    # 最後の攻撃でこのキャラクターを倒したときにゲーム終了になるようにする。
+    target_player.characters[1].receive_damage(999)
+    target_player.characters[2].receive_damage(999)
+
     game.deal_damage(0, 1, 2, Element.DENDRO)
 
     game.deal_damage(0, 1, 2, Element.ELECTRO)
