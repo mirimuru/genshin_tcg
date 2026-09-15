@@ -1,13 +1,15 @@
 from collections.abc import Sequence
+import random
 
 from engine.actions import Action, ActionType
-from engine.dice import DiceType
+from engine.dice import DicePool, DiceType
 from engine.state import Element
 
 
 class Game:
-    def __init__(self, state):
+    def __init__(self, state, rng: random.Random | None = None):
         self.state = state
+        self.rng = rng if rng is not None else random.Random()
 
     def deal_damage(self, attacker_id: int, target_id: int, amount: int, element: Element):
         attacker = self.state.players[attacker_id]
@@ -212,8 +214,8 @@ class Game:
             self.state.round_number += 1
             self.state.players[0].has_ended_round = False
             self.state.players[1].has_ended_round = False
-            self.state.players[0].dice.reset_to_default()
-            self.state.players[1].dice.reset_to_default()
+            self.state.players[0].dice = DicePool.roll(self.rng)
+            self.state.players[1].dice = DicePool.roll(self.rng)
             self.state.current_player = 0
             return
         self.state.current_player = opponent_id

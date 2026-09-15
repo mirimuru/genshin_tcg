@@ -1,3 +1,5 @@
+import random
+
 import pytest
 
 from engine.actions import Action, ActionType
@@ -7,12 +9,12 @@ from engine.state import CharacterState, Element, GameState, PlayerState
 from players.cpu import CpuPlayer
 
 
-def make_game():
+def make_game(rng=None):
     players = [
         PlayerState(0, [CharacterState("A", Element.PYRO), CharacterState("B", Element.HYDRO), CharacterState("C", Element.CRYO)]),
         PlayerState(1, [CharacterState("X", Element.PYRO), CharacterState("Y", Element.HYDRO), CharacterState("Z", Element.CRYO)]),
     ]
-    return Game(GameState(players))
+    return Game(GameState(players), rng=rng)
 
 
 def test_default_dice_pool_contains_eight_omni_dice():
@@ -42,6 +44,21 @@ def test_dice_pool_rejects_insufficient_cost():
     dice = DicePool({DiceType.PYRO: 1})
     with pytest.raises(ValueError):
         dice.pay({DiceType.PYRO: 2})
+
+
+def test_roll_generates_eight_dice_from_all_elemental_types_and_omni():
+    dice = DicePool.roll(random.Random(0), count=8)
+
+    assert dice.total == 8
+    assert dice.count(DiceType.CRYO) == 3
+    assert dice.count(DiceType.ELECTRO) == 2
+    assert dice.count(DiceType.GEO) == 2
+    assert dice.count(DiceType.OMNI) == 1
+
+
+def test_roll_rejects_invalid_count():
+    with pytest.raises(ValueError):
+        DicePool.roll(random.Random(0), count=-1)
 
 
 def test_attack_actions_require_three_dice():
@@ -80,12 +97,25 @@ def test_cpu_ends_round_when_no_action_can_afford_dice():
     assert action == Action(0, ActionType.END_ROUND)
 
 
-def test_round_end_refills_simplified_dice_pool():
-    game = make_game()
+def test_round_end_rolls_new_elemental_dice():
+    game = make_game(random.Random(0))
     game.state.players[0].dice = DicePool({DiceType.OMNI: 1})
     game.state.players[1].dice = DicePool({DiceType.OMNI: 1})
+
     game.execute_action(Action(0, ActionType.END_ROUND))
     game.execute_action(Action(1, ActionType.END_ROUND))
+
+    player0_dice = game.state.players[0].dice
+    player1_dice = game.state.players[1].dice
     assert game.state.round_number == 2
-    assert game.state.players[0].dice.total == 8
-    assert game.state.players[1].dice.total == 8
+    assert player0_dice.total == 8
+    assert player1_dice.total == 8
+    assert player0_dice.count(DiceType.CRYO) == 3
+    assert player0_dice.count(DiceType.ELECTRO) == 2
+    assert player0_dice.count(DiceType.GEO) == 2
+    assert player0_dice.count(DiceType.OMNI) == 1
+    assert player1_dice.count(DiceType.HYDRO) == 3
+    assert player1_dice.count(DiceType.ELECTRO) == 2
+    assert player1_dice.count(DiceType.DENDRO) == 1
+    assert player1_dice.count(DiceType.ANEMO) == 1
+    assert player1_dice.count(DiceType.PYRO) == 1

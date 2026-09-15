@@ -1,3 +1,4 @@
+import random
 from collections import Counter
 from enum import Enum
 from typing import Mapping
@@ -19,6 +20,16 @@ class DicePool:
     """プレイヤーが所持しているダイスを管理する簡易プール。"""
 
     DEFAULT_DICE = 8
+    ROLLABLE_DICE_TYPES = (
+        DiceType.OMNI,
+        DiceType.PYRO,
+        DiceType.HYDRO,
+        DiceType.ANEMO,
+        DiceType.ELECTRO,
+        DiceType.DENDRO,
+        DiceType.CRYO,
+        DiceType.GEO,
+    )
 
     def __init__(self, dice: Mapping[DiceType, int] | None = None):
         self._dice = Counter()
@@ -35,6 +46,16 @@ class DicePool:
     def default(cls) -> "DicePool":
         """現在の簡易ルール用の初期ダイス8個を生成する。"""
         return cls({DiceType.OMNI: cls.DEFAULT_DICE})
+
+    @classmethod
+    def roll(cls, rng: random.Random | None = None, count: int = DEFAULT_DICE) -> "DicePool":
+        """元素7種と万能から指定個数のダイスをランダム生成する。"""
+        if count < 0:
+            raise ValueError("dice count must not be negative")
+
+        chooser = rng if rng is not None else random
+        rolled = Counter(chooser.choice(cls.ROLLABLE_DICE_TYPES) for _ in range(count))
+        return cls(rolled)
 
     @property
     def total(self) -> int:
