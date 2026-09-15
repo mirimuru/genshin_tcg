@@ -26,13 +26,12 @@ class Game:
             target_character.statuses.remove("frozen")
             frozen_break_bonus = 2
 
-        # 既存の原激化フィールドがある場合は、草・雷ダメージ1回分を消費する。
-        # 超激化を起こしたそのダメージにはフィールドの+1を重ねない。
         had_catalyzing_field = attacker.catalyzing_field > 0
         catalyzing_field_boost = 0
 
         reaction = None
         reaction_bonus = 0
+        reacted_element = target_character.elemental_aura
         if target_character.elemental_aura is not None:
             result = ReactionResolver.resolve(target_character.elemental_aura, element)
             reaction = result.reaction
@@ -72,8 +71,6 @@ class Game:
                 attacker.summons.get("burning_flame", 0) + 1,
             )
 
-        # 原激化フィールドが存在しない状態で超激化を起こした場合のみ生成する。
-        # 既存フィールドは反応によって更新・リセットせず、残り使用回数を維持する。
         if reaction is ElementalReaction.QUICKEN and not had_catalyzing_field:
             attacker.catalyzing_field = 2
 
@@ -96,7 +93,9 @@ class Game:
             ElementalReaction.ELECTRO_CHARGED,
             ElementalReaction.SUPERCONDUCT,
         }:
-            self._deal_reaction_penetration_damage(target, target_id)
+            self._deal_reaction_penetration_damage(target)
+        elif reaction is ElementalReaction.SWIRL and reacted_element is not None:
+            self._deal_swirl_spread_damage(target, reacted_element)
 
         print(f"{target_character.name}のHP：{target_character.hp}/{target_character.max_hp}")
         self.state.check_game_over()
@@ -130,12 +129,21 @@ class Game:
         return 0
 
     @staticmethod
-    def _deal_reaction_penetration_damage(target, target_id: int) -> None:
+    def _deal_reaction_penetration_damage(target) -> None:
         """感電・超伝導の追加1ダメージを控えキャラクターへ与える。"""
         for index, character in enumerate(target.characters):
             if index == target.active_character_index or not character.alive:
                 continue
             character.receive_damage(1)
+
+    @staticmethod
+    def _deal_swirl_spread_damage(target, element: Element) -> None:
+        """拡散した元素を控えキャラクターへ1ダメージとして付着させる。"""
+        for index, character in enumerate(target.characters):
+            if index == target.active_character_index or not character.alive:
+                continue
+            character.receive_damage(1)
+            character.elemental_aura = element
 
     def normal_attack(self, player_id: int):
         character = self.state.players[player_id].active_character
