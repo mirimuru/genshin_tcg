@@ -1,6 +1,7 @@
 import pytest
 
 from engine.actions import Action, ActionType
+from engine.dice import DicePool, DiceType
 from engine.game import Game
 from engine.state import CharacterState, Element, GameState, PlayerState
 
@@ -31,7 +32,12 @@ def make_game():
             character.definition = RecordingDefinition()
         players.append(PlayerState(player_id, characters))
 
-    return Game(GameState(players))
+    game = Game(GameState(players))
+    game.execute_action(Action(0, ActionType.REROLL_DICE, target=()))
+    game.execute_action(Action(1, ActionType.REROLL_DICE, target=()))
+    game.state.players[0].dice = DicePool.default()
+    game.state.players[1].dice = DicePool.default()
+    return game
 
 
 def test_execute_action_dispatches_normal_attack():
@@ -39,7 +45,7 @@ def test_execute_action_dispatches_normal_attack():
 
     game.execute_action(Action(0, ActionType.NORMAL_ATTACK))
 
-    definition = game.state.players[0].active_character.definition
+    definition = game.state.players[0].characters[0].definition
     assert definition.calls == [("normal_attack", 0)]
     assert game.state.current_player == 1
 
@@ -49,17 +55,18 @@ def test_execute_action_dispatches_elemental_skill():
 
     game.execute_action(Action(0, ActionType.ELEMENTAL_SKILL))
 
-    definition = game.state.players[0].active_character.definition
+    definition = game.state.players[0].characters[0].definition
     assert definition.calls == [("elemental_skill", 0)]
     assert game.state.current_player == 1
 
 
 def test_execute_action_dispatches_elemental_burst():
     game = make_game()
+    game.state.players[0].active_character.energy = 2
 
     game.execute_action(Action(0, ActionType.ELEMENTAL_BURST))
 
-    definition = game.state.players[0].active_character.definition
+    definition = game.state.players[0].characters[0].definition
     assert definition.calls == [("elemental_burst", 0)]
     assert game.state.current_player == 1
 
@@ -122,6 +129,7 @@ def test_end_round_starts_next_round_when_both_players_ended():
 
     assert game.state.round_number == 2
     assert game.state.current_player == 0
+    assert game.state.phase.value == "roll"
     assert not game.state.players[0].has_ended_round
     assert not game.state.players[1].has_ended_round
 
