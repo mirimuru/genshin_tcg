@@ -26,6 +26,14 @@ class Game:
             target_character.statuses.remove("frozen")
             frozen_break_bonus = 2
 
+        # 原激化フィールドは、草・雷ダメージの各インスタンスを1回ずつ強化する。
+        # 反応判定より前に消費することで、既存フィールドがある状態で
+        # 再度超激化が発生した場合にも、旧フィールドの1回分を正しく消費する。
+        catalyzing_field_boost = 0
+        if element in {Element.DENDRO, Element.ELECTRO} and attacker.catalyzing_field > 0:
+            attacker.catalyzing_field -= 1
+            catalyzing_field_boost = 1
+
         reaction = None
         reaction_bonus = 0
         if target_character.elemental_aura is not None:
@@ -59,7 +67,18 @@ class Game:
                 attacker.summons.get("burning_flame", 0) + 1,
             )
 
-        total_damage = amount + reaction_bonus + dendro_core_boost + frozen_break_bonus
+        # 超激化は原激化フィールドを2回分生成する。既存フィールドがある場合も
+        # 最大2回分までに制限する（同時に旧フィールドの1回分は上で消費済み）。
+        if reaction is ElementalReaction.QUICKEN:
+            attacker.catalyzing_field = min(2, attacker.catalyzing_field + 2)
+
+        total_damage = (
+            amount
+            + reaction_bonus
+            + catalyzing_field_boost
+            + dendro_core_boost
+            + frozen_break_bonus
+        )
         if reaction is not None:
             print(f"元素反応：{reaction.value}")
         print(
