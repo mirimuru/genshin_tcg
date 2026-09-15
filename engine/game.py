@@ -1,8 +1,8 @@
-import random
 from collections.abc import Sequence
+import random
 
 from engine.actions import Action, ActionType
-from engine.dice import DiceType
+from engine.dice import DicePool, DiceType
 from engine.state import Element
 
 
