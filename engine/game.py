@@ -26,14 +26,6 @@ class Game:
             target_character.statuses.remove("frozen")
             frozen_break_bonus = 2
 
-        # 原激化フィールドは、草・雷ダメージの各インスタンスを1回ずつ強化する。
-        # 反応判定より前に消費することで、既存フィールドがある状態で
-        # 再度超激化が発生した場合にも、旧フィールドの1回分を正しく消費する。
-        catalyzing_field_boost = 0
-        if element in {Element.DENDRO, Element.ELECTRO} and attacker.catalyzing_field > 0:
-            attacker.catalyzing_field -= 1
-            catalyzing_field_boost = 1
-
         reaction = None
         reaction_bonus = 0
         if target_character.elemental_aura is not None:
@@ -49,6 +41,18 @@ class Game:
 
         if reaction is ElementalReaction.FROZEN and not self._is_frozen(target_character):
             target_character.statuses.append("frozen")
+
+        # 原激化フィールドは草・雷の通常のダメージインスタンスを1増加させる。
+        # 超激化そのものを発生させる攻撃には適用せず、反応後に生成された
+        # フィールドから次の草・雷ダメージへ適用する。
+        catalyzing_field_boost = 0
+        if (
+            reaction is not ElementalReaction.QUICKEN
+            and element in {Element.DENDRO, Element.ELECTRO}
+            and attacker.catalyzing_field > 0
+        ):
+            attacker.catalyzing_field -= 1
+            catalyzing_field_boost = 1
 
         dendro_core_boost = 0
         if element in {Element.PYRO, Element.ELECTRO} and attacker.dendro_core > 0:
@@ -67,8 +71,8 @@ class Game:
                 attacker.summons.get("burning_flame", 0) + 1,
             )
 
-        # 超激化は原激化フィールドを2回分生成する。既存フィールドがある場合も
-        # 最大2回分までに制限する（同時に旧フィールドの1回分は上で消費済み）。
+        # 超激化は原激化フィールドを2回分生成する。既存フィールドがあっても
+        # 最大2回分までに制限する。
         if reaction is ElementalReaction.QUICKEN:
             attacker.catalyzing_field = min(2, attacker.catalyzing_field + 2)
 
