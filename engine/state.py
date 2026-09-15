@@ -179,3 +179,5 @@ class GameState:
             self.winner = None
 
         return self.game_over
+
+# Quicken catalyzing-field state is owned by PlayerState.
