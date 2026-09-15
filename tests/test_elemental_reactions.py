@@ -62,6 +62,12 @@ def test_anemo_pyro_causes_swirl():
     assert result.reaction is ElementalReaction.SWIRL
 
 
+def test_anemo_dendro_does_not_swirl():
+    result = ReactionResolver.resolve(Element.ANEMO, Element.DENDRO)
+
+    assert result.reaction is None
+
+
 def test_geo_pyro_causes_crystallize():
     result = ReactionResolver.resolve(Element.GEO, Element.PYRO)
 
