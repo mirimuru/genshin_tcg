@@ -15,6 +15,11 @@ class Element(Enum):
     PHYSICAL = "物理"
 
 
+class GamePhase(Enum):
+    ROLL = "roll"
+    ACTION = "action"
+
+
 class CharacterState:
     def __init__(
         self,
@@ -81,6 +86,7 @@ class PlayerState:
         self.deck = []
 
         self.has_ended_round = False
+        self.has_rerolled = False
 
     @property
     def active_character(self) -> CharacterState:
@@ -137,6 +143,7 @@ class GameState:
 
         self.players = players
         self.round_number = 1
+        self.phase = GamePhase.ROLL
         self.current_player = 0
         self.game_over = False
         self.winner: Optional[int] = None
