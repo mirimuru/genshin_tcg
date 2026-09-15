@@ -173,6 +173,32 @@ def test_deal_damage_applies_overloaded_bonus():
     assert target.elemental_aura is None
 
 
+def test_overloaded_requires_opponent_to_switch():
+    game = make_game()
+    target_player = game.state.players[1]
+    target = target_player.active_character
+    target.elemental_aura = Element.ELECTRO
+
+    game.deal_damage(0, 1, 1, Element.PYRO)
+
+    assert target.hp == 7
+    assert target_player.requires_switch
+
+
+def test_forced_switch_clears_overloaded_switch_requirement():
+    game = make_game()
+    target_player = game.state.players[1]
+    target_player.active_character.elemental_aura = Element.ELECTRO
+
+    game.deal_damage(0, 1, 1, Element.PYRO)
+    game.state.current_player = 1
+
+    game.execute_action(Action(1, ActionType.SWITCH_CHARACTER, target=1))
+
+    assert target_player.active_character_index == 1
+    assert not target_player.requires_switch
+
+
 def test_deal_damage_applies_bloom_bonus():
     game = make_game()
     target = game.state.players[1].active_character
@@ -182,6 +208,75 @@ def test_deal_damage_applies_bloom_bonus():
 
     assert target.hp == 7
     assert target.elemental_aura is None
+
+
+def test_bloom_creates_dendro_core_for_attacker():
+    game = make_game()
+    target = game.state.players[1].active_character
+    target.elemental_aura = Element.DENDRO
+
+    game.deal_damage(0, 1, 2, Element.HYDRO)
+
+    assert game.state.players[0].dendro_core == 1
+
+
+def test_dendro_core_boosts_next_pyro_damage_and_is_consumed():
+    game = make_game()
+    target = game.state.players[1].active_character
+    target.elemental_aura = Element.DENDRO
+
+    game.deal_damage(0, 1, 1, Element.HYDRO)
+
+    assert game.state.players[0].dendro_core == 1
+
+    target.elemental_aura = None
+    hp_before = target.hp
+
+    game.deal_damage(0, 1, 1, Element.PYRO)
+
+    assert hp_before - target.hp == 3
+    assert game.state.players[0].dendro_core == 0
+
+
+def test_dendro_core_is_capped_at_two():
+    game = make_game()
+    target = game.state.players[1].active_character
+    target.elemental_aura = Element.DENDRO
+
+    game.deal_damage(0, 1, 1, Element.HYDRO)
+    target.elemental_aura = Element.DENDRO
+    game.deal_damage(0, 1, 1, Element.HYDRO)
+    assert game.state.players[0].dendro_core == 2
+
+    target.elemental_aura = Element.DENDRO
+    game.deal_damage(0, 1, 1, Element.HYDRO)
+    assert game.state.players[0].dendro_core == 2
+
+
+def test_dendro_core_boosts_electro_damage_and_is_consumed():
+    game = make_game()
+    attacker = game.state.players[0]
+    target = game.state.players[1].active_character
+    attacker.dendro_core = 1
+    target.elemental_aura = None
+
+    hp_before = target.hp
+    game.deal_damage(0, 1, 1, Element.ELECTRO)
+
+    assert hp_before - target.hp == 3
+    assert attacker.dendro_core == 0
+
+
+def test_dendro_core_is_not_consumed_by_non_pyro_or_electro_damage():
+    game = make_game()
+    attacker = game.state.players[0]
+    target = game.state.players[1].active_character
+    attacker.dendro_core = 1
+    target.elemental_aura = None
+
+    game.deal_damage(0, 1, 1, Element.HYDRO)
+
+    assert attacker.dendro_core == 1
 
 
 def test_deal_damage_applies_electro_charged_bonus():
