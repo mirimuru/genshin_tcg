@@ -1,5 +1,3 @@
-import pytest
-
 from engine.actions import Action, ActionType
 from engine.dice import DicePool
 from engine.game import Game
@@ -24,19 +22,19 @@ def make_game():
     return game
 
 
-def test_burning_reaction_applies_burning_status():
+def test_burning_reaction_creates_burning_flame_summon():
     game = make_game()
     target = game.state.players[1].active_character
     target.elemental_aura = Element.DENDRO
 
     game.deal_damage(0, 1, 2, Element.PYRO)
 
-    assert "burning" in target.statuses
+    assert game.state.players[0].summons.get("burning_flame") == 1
     assert target.hp == 7
     assert target.elemental_aura is None
 
 
-def test_burning_status_deals_one_damage_at_end_of_round_and_is_removed():
+def test_burning_flame_deals_one_pyro_damage_at_end_of_round_and_consumes_usage():
     game = make_game()
     target = game.state.players[1].active_character
     target.elemental_aura = Element.DENDRO
@@ -47,20 +45,20 @@ def test_burning_status_deals_one_damage_at_end_of_round_and_is_removed():
     game.execute_action(Action(1, ActionType.END_ROUND))
 
     assert hp_before - target.hp == 1
-    assert "burning" not in target.statuses
+    assert "burning_flame" not in game.state.players[0].summons
 
 
-def test_burning_damage_can_end_the_game():
+def test_burning_flame_damage_can_end_the_game():
     game = make_game()
     target_player = game.state.players[1]
     target = target_player.active_character
     target.elemental_aura = Element.DENDRO
-    target.receive_damage(7)
+    target.receive_damage(8)
     target_player.characters[1].receive_damage(999)
     target_player.characters[2].receive_damage(999)
 
     game.deal_damage(0, 1, 1, Element.PYRO)
-    assert "burning" in target.statuses
+    assert game.state.players[0].summons.get("burning_flame") == 1
     assert target.hp == 1
     assert not game.state.game_over
 
@@ -71,13 +69,18 @@ def test_burning_damage_can_end_the_game():
     assert game.state.game_over
 
 
-def test_reapplying_burning_does_not_duplicate_status():
+def test_reapplying_burning_increases_summon_usage_up_to_two():
     game = make_game()
     target = game.state.players[1].active_character
-    target.elemental_aura = Element.DENDRO
-    game.deal_damage(0, 1, 1, Element.PYRO)
 
     target.elemental_aura = Element.DENDRO
     game.deal_damage(0, 1, 1, Element.PYRO)
+    assert game.state.players[0].summons.get("burning_flame") == 1
 
-    assert target.statuses.count("burning") == 1
+    target.elemental_aura = Element.DENDRO
+    game.deal_damage(0, 1, 1, Element.PYRO)
+    assert game.state.players[0].summons.get("burning_flame") == 2
+
+    target.elemental_aura = Element.DENDRO
+    game.deal_damage(0, 1, 1, Element.PYRO)
+    assert game.state.players[0].summons.get("burning_flame") == 2
