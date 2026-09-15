@@ -1,4 +1,5 @@
-from engine.actions import ActionType
+from engine.actions import Action, ActionType
+from engine.dice import DicePool
 from engine.game import Game
 from engine.state import CharacterState, Element, GameState, PlayerState
 from players.cpu import CpuPlayer
@@ -15,7 +16,12 @@ def make_player(player_id):
 
 def make_game():
     state = GameState([make_player(0), make_player(1)])
-    return Game(state)
+    game = Game(state)
+    game.execute_action(Action(0, ActionType.REROLL_DICE, target=()))
+    game.execute_action(Action(1, ActionType.REROLL_DICE, target=()))
+    game.state.players[0].dice = DicePool.default()
+    game.state.players[1].dice = DicePool.default()
+    return game
 
 
 def test_cpu_uses_burst_when_energy_is_full():
