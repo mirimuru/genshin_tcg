@@ -15,6 +15,8 @@ class ElementalReaction(Enum):
     SUPERCONDUCT = "超伝導"
     QUICKEN = "超激化"
     BURNING = "燃焼"
+    OVERLOADED = "過負荷"
+    BLOOM = "開花"
     SWIRL = "拡散"
     CRYSTALLIZE = "結晶"
 
@@ -45,6 +47,8 @@ class ReactionResolver:
         frozenset((Element.ELECTRO, Element.CRYO)): ElementalReaction.SUPERCONDUCT,
         frozenset((Element.ELECTRO, Element.DENDRO)): ElementalReaction.QUICKEN,
         frozenset((Element.PYRO, Element.DENDRO)): ElementalReaction.BURNING,
+        frozenset((Element.PYRO, Element.ELECTRO)): ElementalReaction.OVERLOADED,
+        frozenset((Element.HYDRO, Element.DENDRO)): ElementalReaction.BLOOM,
         frozenset((Element.ANEMO, Element.PYRO)): ElementalReaction.SWIRL,
         frozenset((Element.ANEMO, Element.HYDRO)): ElementalReaction.SWIRL,
         frozenset((Element.ANEMO, Element.ELECTRO)): ElementalReaction.SWIRL,
