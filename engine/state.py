@@ -90,6 +90,8 @@ class PlayerState:
         self.has_rerolled = False
         self.must_switch = False
         self.dendro_core = 0
+        # 原激化フィールド。次の草・雷ダメージ2回をそれぞれ1増加させる。
+        self.catalyzing_field = 0
 
     @property
     def active_character(self) -> CharacterState:
