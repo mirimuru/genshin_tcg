@@ -41,14 +41,14 @@ def test_step_executes_one_action_and_returns_it():
     assert game.state.current_player == 1
 
 
-def test_run_stops_after_both_players_end_round():
+def test_run_stops_at_max_actions_after_round_transition():
     game = make_game()
 
     class EndRoundPlayer:
         def choose_action(self, game, player_id, legal_actions=None):
             return next(action for action in legal_actions if action.action_type is ActionType.END_ROUND)
 
-    actions = game.run([EndRoundPlayer(), EndRoundPlayer()], max_actions=4)
+    actions = game.run([EndRoundPlayer(), EndRoundPlayer()], max_actions=2)
 
     assert len(actions) == 2
     assert game.state.round_number == 2
