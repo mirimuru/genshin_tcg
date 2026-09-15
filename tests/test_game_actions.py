@@ -149,3 +149,57 @@ def test_play_card_is_not_implemented_yet():
 
     with pytest.raises(NotImplementedError, match="カード"):
         game.execute_action(Action(0, ActionType.PLAY_CARD, card_id="test_card"))
+
+
+def test_deal_damage_applies_vaporize_bonus_and_consumes_aura():
+    game = make_game()
+    target = game.state.players[1].active_character
+    target.elemental_aura = Element.HYDRO
+
+    game.deal_damage(0, 1, 2, Element.PYRO)
+
+    assert target.hp == 6
+    assert target.elemental_aura is None
+
+
+def test_deal_damage_applies_overloaded_bonus():
+    game = make_game()
+    target = game.state.players[1].active_character
+    target.elemental_aura = Element.ELECTRO
+
+    game.deal_damage(0, 1, 2, Element.PYRO)
+
+    assert target.hp == 6
+    assert target.elemental_aura is None
+
+
+def test_deal_damage_applies_bloom_bonus():
+    game = make_game()
+    target = game.state.players[1].active_character
+    target.elemental_aura = Element.DENDRO
+
+    game.deal_damage(0, 1, 2, Element.HYDRO)
+
+    assert target.hp == 7
+    assert target.elemental_aura is None
+
+
+def test_deal_damage_applies_electro_charged_bonus():
+    game = make_game()
+    target = game.state.players[1].active_character
+    target.elemental_aura = Element.HYDRO
+
+    game.deal_damage(0, 1, 2, Element.ELECTRO)
+
+    assert target.hp == 7
+    assert target.elemental_aura is None
+
+
+def test_deal_damage_applies_elemental_aura_when_no_reaction_occurs():
+    game = make_game()
+    target = game.state.players[1].active_character
+
+    game.deal_damage(0, 1, 2, Element.PYRO)
+
+    assert target.hp == 8
+    assert target.elemental_aura is Element.PYRO
