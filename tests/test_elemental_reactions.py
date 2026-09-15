@@ -56,6 +56,30 @@ def test_pyro_dendro_causes_burning():
     assert result.reaction is ElementalReaction.BURNING
 
 
+def test_pyro_electro_causes_overloaded():
+    result = ReactionResolver.resolve(Element.PYRO, Element.ELECTRO)
+
+    assert result.reaction is ElementalReaction.OVERLOADED
+
+
+def test_electro_pyro_causes_overloaded_regardless_of_order():
+    result = ReactionResolver.resolve(Element.ELECTRO, Element.PYRO)
+
+    assert result.reaction is ElementalReaction.OVERLOADED
+
+
+def test_hydro_dendro_causes_bloom():
+    result = ReactionResolver.resolve(Element.HYDRO, Element.DENDRO)
+
+    assert result.reaction is ElementalReaction.BLOOM
+
+
+def test_dendro_hydro_causes_bloom_regardless_of_order():
+    result = ReactionResolver.resolve(Element.DENDRO, Element.HYDRO)
+
+    assert result.reaction is ElementalReaction.BLOOM
+
+
 def test_anemo_pyro_causes_swirl():
     result = ReactionResolver.resolve(Element.ANEMO, Element.PYRO)
 
