@@ -396,11 +396,11 @@ class Game:
             opponent_id = 1 - player.player_id
             self.deal_damage(player.player_id, opponent_id, 1, Element.PYRO)
 
-            usages -= 1
+            usages = player.summons.get("burning_flame", 0) - 1
             if usages > 0:
                 player.summons["burning_flame"] = usages
             else:
-                del player.summons["burning_flame"]
+                player.summons.pop("burning_flame", None)
 
             if self.state.game_over:
                 return
