@@ -37,6 +37,10 @@ class CpuPlayer:
         attack = find(ActionType.NORMAL_ATTACK)
         if attack is not None:
             return attack
+
+        tuning = find(ActionType.ELEMENTAL_TUNING)
+        if tuning is not None:
+            return tuning
         return find(ActionType.END_ROUND) or legal_actions[0]
 
     @staticmethod
