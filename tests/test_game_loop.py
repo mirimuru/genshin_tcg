@@ -1,8 +1,9 @@
 import pytest
 
-from engine.actions import ActionType
+from engine.actions import Action, ActionType
+from engine.dice import DicePool
 from engine.game import Game
-from engine.state import CharacterState, Element, GameState, PlayerState
+from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
 from players.cpu import CpuPlayer
 
 
@@ -30,10 +31,19 @@ def make_game():
     return Game(GameState(players))
 
 
-def test_step_executes_one_action_and_returns_it():
+def test_step_executes_roll_phase_then_action_phase():
     game = make_game()
     players = [CpuPlayer(), CpuPlayer()]
 
+    first = game.step(players)
+    second = game.step(players)
+
+    assert first.action_type is ActionType.REROLL_DICE
+    assert second.action_type is ActionType.REROLL_DICE
+    assert game.state.phase is GamePhase.ACTION
+    assert game.state.current_player == 0
+
+    game.state.players[0].dice = DicePool.default()
     action = game.step(players)
 
     assert action.player_id == 0
@@ -48,10 +58,11 @@ def test_run_stops_at_max_actions_after_round_transition():
         def choose_action(self, game, player_id, legal_actions=None):
             return next(action for action in legal_actions if action.action_type is ActionType.END_ROUND)
 
-    actions = game.run([EndRoundPlayer(), EndRoundPlayer()], max_actions=2)
+    actions = game.run([EndRoundPlayer(), EndRoundPlayer()], max_actions=4)
 
-    assert len(actions) == 2
+    assert len(actions) == 4
     assert game.state.round_number == 2
+    assert game.state.phase is GamePhase.ROLL
     assert game.state.current_player == 0
 
 
