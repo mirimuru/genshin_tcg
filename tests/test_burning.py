@@ -55,7 +55,7 @@ def test_burning_damage_can_end_the_game():
     target_player = game.state.players[1]
     target = target_player.active_character
     target.elemental_aura = Element.DENDRO
-    target.receive_damage(8)
+    target.receive_damage(7)
     target_player.characters[1].receive_damage(999)
     target_player.characters[2].receive_damage(999)
 
