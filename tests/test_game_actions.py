@@ -94,7 +94,7 @@ def test_execute_action_requires_forced_switch():
 def test_execute_action_forced_switch_is_allowed():
     game = make_game()
     game.state.players[0].active_character.receive_damage(999)
-    game.execute_action(Action(0, ActionType.SWITCH_CHARACTER, target=1)
+    game.execute_action(Action(0, ActionType.SWITCH_CHARACTER, target=1))
     assert game.state.players[0].active_character_index == 1
 
 
@@ -318,7 +318,7 @@ def test_frozen_character_can_switch():
     game = make_game()
     player = game.state.players[0]
     player.active_character.statuses.append("frozen")
-    game.execute_action(Action(0, ActionType.SWITCH_CHARACTER, target=1)
+    game.execute_action(Action(0, ActionType.SWITCH_CHARACTER, target=1))
     assert player.active_character_index == 1
 
 
