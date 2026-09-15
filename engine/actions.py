@@ -7,6 +7,7 @@ class ActionType(Enum):
     ELEMENTAL_SKILL = "elemental_skill"
     ELEMENTAL_BURST = "elemental_burst"
     SWITCH_CHARACTER = "switch_character"
+    ELEMENTAL_TUNING = "elemental_tuning"
     PLAY_CARD = "play_card"
     END_ROUND = "end_round"
 
