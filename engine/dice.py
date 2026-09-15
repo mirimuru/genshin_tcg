@@ -44,50 +44,64 @@ class DicePool:
         return self._dice[dice_type]
 
     def can_pay(self, cost: Mapping[DiceType, int]) -> bool:
+        """指定コストを現在のダイスだけで支払えるか判定する。"""
         if any(count < 0 for count in cost.values()):
             raise ValueError("dice cost must not be negative")
 
         remaining = Counter(self._dice)
-        omni = remaining[DiceType.OMNI]
 
+        explicit_omni = cost.get(DiceType.OMNI, 0)
+        if remaining[DiceType.OMNI] < explicit_omni:
+            return False
+        remaining[DiceType.OMNI] -= explicit_omni
+
+        missing = 0
         for dice_type, required in cost.items():
-            if dice_type is DiceType.ANY:
+            if dice_type in (DiceType.OMNI, DiceType.ANY):
                 continue
-            available = remaining[dice_type]
-            use = min(available, required)
+            use = min(remaining[dice_type], required)
             remaining[dice_type] -= use
-            required -= use
-            if dice_type is not DiceType.OMNI:
-                omni -= required
-            else:
-                omni -= required
-            if omni < 0:
-                return False
+            missing += required - use
+
+        if missing > remaining[DiceType.OMNI]:
+            return False
+        remaining[DiceType.OMNI] -= missing
 
         any_required = cost.get(DiceType.ANY, 0)
-        return remaining_total(remaining) - omni >= 0 and self.total >= sum(cost.values())
+        return sum(remaining.values()) >= any_required
 
     def pay(self, cost: Mapping[DiceType, int]) -> None:
+        """コストを支払い、ダイスを減らす。不足時は状態を変更せず例外を送出する。"""
         if not self.can_pay(cost):
             raise ValueError("ダイスが不足しています")
 
-        for dice_type, required in cost.items():
-            if dice_type is DiceType.ANY:
-                for available_type in list(self._dice):
-                    if required == 0:
-                        break
-                    if available_type is DiceType.ANY:
-                        continue
-                    use = min(self._dice[available_type], required)
-                    self._dice[available_type] -= use
-                    required -= use
-                continue
+        remaining_cost = Counter(cost)
 
+        for dice_type, required in list(remaining_cost.items()):
+            if dice_type in (DiceType.OMNI, DiceType.ANY):
+                continue
             direct = min(self._dice[dice_type], required)
             self._dice[dice_type] -= direct
-            required -= direct
-            if required:
-                self._dice[DiceType.OMNI] -= required
+            remaining_cost[dice_type] -= direct
+
+        for dice_type, required in list(remaining_cost.items()):
+            if dice_type in (DiceType.OMNI, DiceType.ANY) or required <= 0:
+                continue
+            self._dice[DiceType.OMNI] -= required
+            remaining_cost[dice_type] = 0
+
+        explicit_omni = remaining_cost[DiceType.OMNI]
+        if explicit_omni:
+            self._dice[DiceType.OMNI] -= explicit_omni
+
+        any_required = remaining_cost[DiceType.ANY]
+        if any_required:
+            for dice_type in list(self._dice):
+                if any_required == 0:
+                    break
+                use = min(self._dice[dice_type], any_required)
+                self._dice[dice_type] -= use
+                any_required -= use
 
         self._remove_zeroes()
 
@@ -99,7 +113,3 @@ class DicePool:
     def reset_to_default(self) -> None:
         self._dice.clear()
         self._dice[DiceType.OMNI] = self.DEFAULT_DICE
-
-
-def remaining_total(dice: Mapping[DiceType, int]) -> int:
-    return sum(dice.values())
