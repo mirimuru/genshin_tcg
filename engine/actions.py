@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum
 
+from engine.dice import DiceType
+
 
 class ActionType(Enum):
     NORMAL_ATTACK = "normal_attack"
@@ -16,5 +18,5 @@ class ActionType(Enum):
 class Action:
     player_id: int
     action_type: ActionType
-    target: int | None = None
+    target: int | DiceType | None = None
     card_id: str | None = None
