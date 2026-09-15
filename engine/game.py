@@ -34,7 +34,22 @@ class Game:
         else:
             target_character.elemental_aura = element
 
-        total_damage = amount + reaction_bonus
+        # 草原核は既存分だけをこの攻撃で消費する。
+        # 開花による新規生成分は同じ攻撃では消費しない。
+        dendro_core_boost = 0
+        if element in {Element.PYRO, Element.ELECTRO} and attacker.dendro_core > 0:
+            attacker.dendro_core -= 1
+            dendro_core_boost = 2
+
+        # 開花で草原核を1個生成する。最大2個まで保持する。
+        if reaction is ElementalReaction.BLOOM:
+            attacker.dendro_core = min(2, attacker.dendro_core + 1)
+
+        # 過負荷では対象プレイヤーに強制交代を要求する。
+        if reaction is ElementalReaction.OVERLOADED and not target.defeated:
+            target.must_switch = True
+
+        total_damage = amount + reaction_bonus + dendro_core_boost
         if reaction is not None:
             print(f"元素反応：{reaction.value}")
         print(
@@ -283,6 +298,8 @@ class Game:
         if not isinstance(action.target, int) or not player.can_switch_to(action.target):
             raise ValueError("交代先が不正です")
         player.switch_character(action.target)
+        if player.must_switch:
+            player.must_switch = False
 
     def _execute_tuning(self, action: Action) -> None:
         if not isinstance(action.target, DiceType):
