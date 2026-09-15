@@ -87,6 +87,8 @@ class PlayerState:
 
         self.has_ended_round = False
         self.has_rerolled = False
+        self.must_switch = False
+        self.dendro_core = 0
 
     @property
     def active_character(self) -> CharacterState:
@@ -98,8 +100,8 @@ class PlayerState:
 
     @property
     def requires_switch(self) -> bool:
-        """現在のアクティブキャラクターが戦闘不能なら交代が必要。"""
-        return not self.active_character.alive and not self.defeated
+        """強制交代が必要か判定する。"""
+        return (self.must_switch or not self.active_character.alive) and not self.defeated
 
     def can_switch_to(self, index: int) -> bool:
         """指定したキャラクターへ交代可能か判定する。"""
