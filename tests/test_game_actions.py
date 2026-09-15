@@ -94,7 +94,7 @@ def test_execute_action_requires_forced_switch():
 def test_execute_action_forced_switch_is_allowed():
     game = make_game()
     game.state.players[0].active_character.receive_damage(999)
-    game.execute_action(Action(0, ActionType.SWITCH_CHARACTER, target=1))
+    game.execute_action(Action(0, ActionType.SWITCH_CHARACTER, target=1)
     assert game.state.players[0].active_character_index == 1
 
 
@@ -108,8 +108,8 @@ def test_end_round_passes_turn_to_opponent():
 
 def test_end_round_starts_next_round_when_both_players_ended():
     game = make_game()
-    game.execute_action(Action(0, ActionType.END_ROUND)
-    game.execute_action(Action(1, ActionType.END_ROUND)
+    game.execute_action(Action(0, ActionType.END_ROUND))
+    game.execute_action(Action(1, ActionType.END_ROUND))
     assert game.state.round_number == 2
     assert game.state.current_player == 0
     assert game.state.phase.value == "roll"
@@ -318,7 +318,7 @@ def test_frozen_character_can_switch():
     game = make_game()
     player = game.state.players[0]
     player.active_character.statuses.append("frozen")
-    game.execute_action(Action(0, ActionType.SWITCH_CHARACTER, target=1))
+    game.execute_action(Action(0, ActionType.SWITCH_CHARACTER, target=1)
     assert player.active_character_index == 1
 
 
@@ -349,3 +349,13 @@ def test_hydro_damage_does_not_break_frozen():
     game.deal_damage(0, 1, 1, Element.HYDRO)
     assert target.hp == 9
     assert "frozen" in target.statuses
+
+
+def test_frozen_status_is_removed_at_end_of_round():
+    game = make_game()
+    for player in game.state.players:
+        player.active_character.statuses.append("frozen")
+    game.execute_action(Action(0, ActionType.END_ROUND))
+    game.execute_action(Action(1, ActionType.END_ROUND))
+    assert "frozen" not in game.state.players[0].active_character.statuses
+    assert "frozen" not in game.state.players[1].active_character.statuses
