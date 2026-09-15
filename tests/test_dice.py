@@ -1,9 +1,10 @@
 import pytest
 
 from engine.actions import Action, ActionType
+from engine.dice import DicePool, DiceType
 from engine.game import Game
 from engine.state import CharacterState, Element, GameState, PlayerState
-from engine.dice import DiceType, DicePool
+from players.cpu import CpuPlayer
 
 
 def make_game():
@@ -27,6 +28,13 @@ def test_dice_pool_can_pay_and_consumes_cost():
     cost = {DiceType.PYRO: 2, DiceType.OMNI: 1}
     assert dice.can_pay(cost)
     dice.pay(cost)
+    assert dice.total == 0
+
+
+def test_omni_dice_can_cover_elemental_cost():
+    dice = DicePool({DiceType.OMNI: 3})
+    assert dice.can_pay({DiceType.PYRO: 3})
+    dice.pay({DiceType.PYRO: 3})
     assert dice.total == 0
 
 
@@ -62,6 +70,14 @@ def test_executing_attack_consumes_three_dice():
     player.active_character.definition = type("Definition", (), {"normal_attack": lambda self, game, player_id: None})()
     game.execute_action(Action(0, ActionType.NORMAL_ATTACK))
     assert player.dice.total == 0
+
+
+def test_cpu_ends_round_when_no_action_can_afford_dice():
+    game = make_game()
+    game.state.players[0].dice = DicePool()
+    legal_actions = game.get_legal_actions(0)
+    action = CpuPlayer().choose_action(game, 0, legal_actions)
+    assert action == Action(0, ActionType.END_ROUND)
 
 
 def test_round_end_refills_simplified_dice_pool():
