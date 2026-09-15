@@ -82,6 +82,14 @@ class Game:
             if player.dice.can_pay(self.get_action_cost(burst)):
                 actions.append(burst)
 
+        target_dice = self._element_to_dice_type(character.element)
+        actions.extend(
+            Action(player_id, ActionType.ELEMENTAL_TUNING, target=dice_type)
+            for dice_type in DicePool.ROLLABLE_DICE_TYPES
+            if dice_type not in (DiceType.OMNI, target_dice)
+            and player.dice.count(dice_type) > 0
+        )
+
         if player.dice.can_pay({DiceType.ANY: 1}):
             actions.extend(
                 Action(player_id, ActionType.SWITCH_CHARACTER, target=index)
@@ -113,6 +121,9 @@ class Game:
             self._execute_switch(action)
             if not was_forced_switch:
                 player.dice.pay(self.get_action_cost(action))
+        elif action.action_type is ActionType.ELEMENTAL_TUNING:
+            self._execute_tuning(action)
+            return
         elif action.action_type is ActionType.NORMAL_ATTACK:
             self._require_and_pay_dice(action)
             self.normal_attack(player_id)
@@ -173,9 +184,17 @@ class Game:
         if action.target is None:
             raise ValueError("交代先が指定されていません")
         player = self.state.players[action.player_id]
-        if not player.can_switch_to(action.target):
+        if not isinstance(action.target, int) or not player.can_switch_to(action.target):
             raise ValueError("交代先が不正です")
         player.switch_character(action.target)
+
+    def _execute_tuning(self, action: Action) -> None:
+        if not isinstance(action.target, DiceType):
+            raise ValueError("調和元のダイスが指定されていません")
+
+        player = self.state.players[action.player_id]
+        target = self._element_to_dice_type(player.active_character.element)
+        player.dice.harmonize(action.target, target)
 
     def _require_and_pay_dice(self, action: Action) -> None:
         player = self.state.players[action.player_id]
