@@ -84,6 +84,7 @@ class PlayerState:
         self.dice = DicePool.default()
         self.hand = []
         self.deck = []
+        self.summons = {}
 
         self.has_ended_round = False
         self.has_rerolled = False
