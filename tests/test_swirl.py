@@ -1,5 +1,5 @@
 from engine.game import Game
-from engine.state import CharacterState, Element, GameState, PlayerState
+from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
 
 
 def make_game():
@@ -12,7 +12,7 @@ def make_game():
         ]
         players.append(PlayerState(player_id, characters))
     game = Game(GameState(players))
-    game.state.phase = game.state.phase.ACTION
+    game.state.phase = GamePhase.ACTION
     return game
 
 
