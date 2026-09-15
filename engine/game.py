@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 
 from engine.actions import Action, ActionType
+from engine.dice import DiceType
 from engine.state import Element
 
 
@@ -31,6 +32,22 @@ class Game:
         character = self.state.players[player_id].active_character
         character.definition.elemental_burst(self, player_id)
 
+    def get_action_cost(self, action: Action) -> dict[DiceType, int]:
+        """簡易ルールにおけるActionのダイスコストを返す。"""
+        if action.action_type is ActionType.SWITCH_CHARACTER:
+            return {DiceType.ANY: 1}
+
+        if action.action_type in {
+            ActionType.NORMAL_ATTACK,
+            ActionType.ELEMENTAL_SKILL,
+            ActionType.ELEMENTAL_BURST,
+        }:
+            character = self.state.players[action.player_id].active_character
+            dice_type = self._element_to_dice_type(character.element)
+            return {dice_type: 3}
+
+        return {}
+
     def get_legal_actions(self, player_id: int) -> list[Action]:
         """現在の状態で player_id が実行できる行動を返す。"""
         if player_id not in (0, 1):
@@ -49,19 +66,26 @@ class Game:
                 if index != player.active_character_index
             ]
 
-        actions = [
-            Action(player_id, ActionType.NORMAL_ATTACK),
-            Action(player_id, ActionType.ELEMENTAL_SKILL),
-        ]
+        actions = []
+        normal_attack = Action(player_id, ActionType.NORMAL_ATTACK)
+        skill = Action(player_id, ActionType.ELEMENTAL_SKILL)
+        if player.dice.can_pay(self.get_action_cost(normal_attack)):
+            actions.append(normal_attack)
+        if player.dice.can_pay(self.get_action_cost(skill)):
+            actions.append(skill)
+
         character = player.active_character
         if character.energy >= character.max_energy:
-            actions.append(Action(player_id, ActionType.ELEMENTAL_BURST))
+            burst = Action(player_id, ActionType.ELEMENTAL_BURST)
+            if player.dice.can_pay(self.get_action_cost(burst)):
+                actions.append(burst)
 
-        actions.extend(
-            Action(player_id, ActionType.SWITCH_CHARACTER, target=index)
-            for index in player.alive_character_indices()
-            if index != player.active_character_index
-        )
+        if player.dice.can_pay({DiceType.ANY: 1}):
+            actions.extend(
+                Action(player_id, ActionType.SWITCH_CHARACTER, target=index)
+                for index in player.alive_character_indices()
+                if index != player.active_character_index
+            )
         actions.append(Action(player_id, ActionType.END_ROUND))
         return actions
 
@@ -81,13 +105,22 @@ class Game:
             raise ValueError("戦闘不能のため強制交代が必要です")
 
         if action.action_type is ActionType.SWITCH_CHARACTER:
+            was_forced_switch = player.requires_switch
+            if not was_forced_switch and not player.dice.can_pay(self.get_action_cost(action)):
+                raise ValueError("ダイスが不足しています")
             self._execute_switch(action)
+            if not was_forced_switch:
+                player.dice.pay(self.get_action_cost(action))
         elif action.action_type is ActionType.NORMAL_ATTACK:
+            self._require_and_pay_dice(action)
             self.normal_attack(player_id)
         elif action.action_type is ActionType.ELEMENTAL_SKILL:
+            self._require_and_pay_dice(action)
             self.elemental_skill(player_id)
         elif action.action_type is ActionType.ELEMENTAL_BURST:
+            self._require_and_pay_dice(action)
             self.elemental_burst(player_id)
+            player.active_character.energy = 0
         elif action.action_type is ActionType.END_ROUND:
             self._end_round(player_id)
             return
@@ -142,6 +175,31 @@ class Game:
             raise ValueError("交代先が不正です")
         player.switch_character(action.target)
 
+    def _require_and_pay_dice(self, action: Action) -> None:
+        player = self.state.players[action.player_id]
+        cost = self.get_action_cost(action)
+        if not player.dice.can_pay(cost):
+            raise ValueError("ダイスが不足しています")
+        player.dice.pay(cost)
+
+    @staticmethod
+    def _element_to_dice_type(element: Element) -> DiceType:
+        if element is Element.PYRO:
+            return DiceType.PYRO
+        if element is Element.HYDRO:
+            return DiceType.HYDRO
+        if element is Element.ANEMO:
+            return DiceType.ANEMO
+        if element is Element.ELECTRO:
+            return DiceType.ELECTRO
+        if element is Element.DENDRO:
+            return DiceType.DENDRO
+        if element is Element.CRYO:
+            return DiceType.CRYO
+        if element is Element.GEO:
+            return DiceType.GEO
+        return DiceType.OMNI
+
     def _advance_turn(self, player_id: int) -> None:
         self.state.current_player = 1 - player_id
 
@@ -154,6 +212,8 @@ class Game:
             self.state.round_number += 1
             self.state.players[0].has_ended_round = False
             self.state.players[1].has_ended_round = False
+            self.state.players[0].dice.reset_to_default()
+            self.state.players[1].dice.reset_to_default()
             self.state.current_player = 0
             return
         self.state.current_player = opponent_id

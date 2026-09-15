@@ -1,6 +1,8 @@
 from enum import Enum
 from typing import List, Optional
 
+from engine.dice import DicePool
+
 
 class Element(Enum):
     PYRO = "炎"
@@ -74,7 +76,7 @@ class PlayerState:
         self.characters = characters
         self.active_character_index = 0
 
-        self.dice = {}
+        self.dice = DicePool.default()
         self.hand = []
         self.deck = []
 
@@ -160,7 +162,6 @@ class GameState:
         if len(defeated_players) == 1:
             self.winner = 1 - defeated_players[0]
         elif len(defeated_players) == 2:
-            # 異常な状態だが、勝者を確定できないためNoneにする。
             self.winner = None
         else:
             self.winner = None
