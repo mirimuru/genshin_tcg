@@ -80,12 +80,12 @@ class Game:
             if player.dice.can_pay(self.get_action_cost(burst)):
                 actions.append(burst)
 
-        actions.extend(
-            Action(player_id, ActionType.SWITCH_CHARACTER, target=index)
-            for index in player.alive_character_indices()
-            if index != player.active_character_index
-            and player.dice.can_pay({DiceType.ANY: 1})
-        )
+        if player.dice.can_pay({DiceType.ANY: 1}):
+            actions.extend(
+                Action(player_id, ActionType.SWITCH_CHARACTER, target=index)
+                for index in player.alive_character_indices()
+                if index != player.active_character_index
+            )
         actions.append(Action(player_id, ActionType.END_ROUND))
         return actions
 
@@ -105,8 +105,11 @@ class Game:
             raise ValueError("戦闘不能のため強制交代が必要です")
 
         if action.action_type is ActionType.SWITCH_CHARACTER:
+            was_forced_switch = player.requires_switch
+            if not was_forced_switch and not player.dice.can_pay(self.get_action_cost(action)):
+                raise ValueError("ダイスが不足しています")
             self._execute_switch(action)
-            if not player.requires_switch:
+            if not was_forced_switch:
                 player.dice.pay(self.get_action_cost(action))
         elif action.action_type is ActionType.NORMAL_ATTACK:
             self._require_and_pay_dice(action)
@@ -170,8 +173,6 @@ class Game:
         player = self.state.players[action.player_id]
         if not player.can_switch_to(action.target):
             raise ValueError("交代先が不正です")
-
-        # 戦闘不能による強制交代は無料。
         player.switch_character(action.target)
 
     def _require_and_pay_dice(self, action: Action) -> None:
