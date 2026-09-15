@@ -49,7 +49,6 @@ class ReactionResolver:
         frozenset((Element.ANEMO, Element.HYDRO)): ElementalReaction.SWIRL,
         frozenset((Element.ANEMO, Element.ELECTRO)): ElementalReaction.SWIRL,
         frozenset((Element.ANEMO, Element.CRYO)): ElementalReaction.SWIRL,
-        frozenset((Element.ANEMO, Element.DENDRO)): ElementalReaction.SWIRL,
         frozenset((Element.GEO, Element.PYRO)): ElementalReaction.CRYSTALLIZE,
         frozenset((Element.GEO, Element.HYDRO)): ElementalReaction.CRYSTALLIZE,
         frozenset((Element.GEO, Element.ELECTRO)): ElementalReaction.CRYSTALLIZE,
