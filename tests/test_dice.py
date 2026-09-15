@@ -119,3 +119,60 @@ def test_round_end_rolls_new_elemental_dice():
     assert player1_dice.count(DiceType.DENDRO) == 1
     assert player1_dice.count(DiceType.ANEMO) == 1
     assert player1_dice.count(DiceType.PYRO) == 1
+
+
+def test_harmonize_converts_one_unwanted_element_to_active_element():
+    dice = DicePool({DiceType.HYDRO: 1, DiceType.PYRO: 2})
+
+    dice.harmonize(DiceType.HYDRO, DiceType.PYRO)
+
+    assert dice.count(DiceType.HYDRO) == 0
+    assert dice.count(DiceType.PYRO) == 3
+    assert dice.total == 3
+
+
+def test_harmonize_rejects_same_element_and_omni_source():
+    dice = DicePool({DiceType.PYRO: 2, DiceType.OMNI: 1})
+
+    with pytest.raises(ValueError):
+        dice.harmonize(DiceType.PYRO, DiceType.PYRO)
+    with pytest.raises(ValueError):
+        dice.harmonize(DiceType.OMNI, DiceType.PYRO)
+
+
+def test_harmonize_rejects_missing_source_die():
+    dice = DicePool({DiceType.HYDRO: 1})
+
+    with pytest.raises(ValueError):
+        dice.harmonize(DiceType.PYRO, DiceType.HYDRO)
+
+
+def test_harmonize_action_is_legal_when_it_can_enable_attack():
+    game = make_game()
+    game.state.players[0].dice = DicePool({DiceType.HYDRO: 1, DiceType.PYRO: 2})
+
+    actions = game.get_legal_actions(0)
+
+    assert Action(0, ActionType.ELEMENTAL_TUNING, target=DiceType.HYDRO) in actions
+
+
+def test_execute_harmonize_converts_die_to_active_element():
+    game = make_game()
+    game.state.players[0].dice = DicePool({DiceType.HYDRO: 1, DiceType.PYRO: 2})
+
+    game.execute_action(Action(0, ActionType.ELEMENTAL_TUNING, target=DiceType.HYDRO))
+
+    dice = game.state.players[0].dice
+    assert dice.count(DiceType.HYDRO) == 0
+    assert dice.count(DiceType.PYRO) == 3
+    assert dice.total == 3
+
+
+def test_cpu_uses_harmonize_when_it_can_enable_elemental_attack():
+    game = make_game()
+    game.state.players[0].dice = DicePool({DiceType.HYDRO: 1, DiceType.PYRO: 2})
+    legal_actions = game.get_legal_actions(0)
+
+    action = CpuPlayer().choose_action(game, 0, legal_actions)
+
+    assert action == Action(0, ActionType.ELEMENTAL_TUNING, target=DiceType.HYDRO)

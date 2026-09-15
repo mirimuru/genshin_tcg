@@ -64,6 +64,21 @@ class DicePool:
     def count(self, dice_type: DiceType) -> int:
         return self._dice[dice_type]
 
+    def harmonize(self, source: DiceType, target: DiceType) -> None:
+        """不要な元素ダイス1個を、指定した元素ダイス1個へ変換する。"""
+        if source is DiceType.OMNI or target is DiceType.OMNI:
+            raise ValueError("万能ダイスは調和の変換対象にできません")
+        if source is DiceType.ANY or target is DiceType.ANY:
+            raise ValueError("任意ダイスは調和の変換対象にできません")
+        if source is target:
+            raise ValueError("同じ元素への調和はできません")
+        if self._dice[source] <= 0:
+            raise ValueError("調和元のダイスがありません")
+
+        self._dice[source] -= 1
+        self._dice[target] += 1
+        self._remove_zeroes()
+
     def can_pay(self, cost: Mapping[DiceType, int]) -> bool:
         """指定コストを現在のダイスだけで支払えるか判定する。"""
         if any(count < 0 for count in cost.values()):
