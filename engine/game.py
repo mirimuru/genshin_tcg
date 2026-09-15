@@ -4,6 +4,7 @@ import random
 
 from engine.actions import Action, ActionType
 from engine.dice import DicePool, DiceType
+from engine.elemental_reactions import ElementalReaction, ReactionResolver
 from engine.state import Element, GamePhase
 
 
@@ -19,10 +20,54 @@ class Game:
         target_character = target.active_character
         if not target_character.alive:
             return
-        print(f"{attacker_character_name(attacker)}が{target_character.name}に{amount}ダメージ（{element.value}）")
-        target_character.receive_damage(amount)
+
+        reaction = None
+        reaction_bonus = 0
+        if target_character.elemental_aura is not None:
+            result = ReactionResolver.resolve(target_character.elemental_aura, element)
+            reaction = result.reaction
+            if reaction is not None:
+                reaction_bonus = self._reaction_damage_bonus(reaction)
+                target_character.elemental_aura = None
+            else:
+                target_character.elemental_aura = element
+        else:
+            target_character.elemental_aura = element
+
+        total_damage = amount + reaction_bonus
+        if reaction is not None:
+            print(f"元素反応：{reaction.value}")
+        print(
+            f"{attacker_character_name(attacker)}が{target_character.name}に"
+            f"{total_damage}ダメージ（{element.value}）"
+        )
+        target_character.receive_damage(total_damage)
         print(f"{target_character.name}のHP：{target_character.hp}/{target_character.max_hp}")
         self.state.check_game_over()
+
+    @staticmethod
+    def _reaction_damage_bonus(reaction: ElementalReaction) -> int:
+        """元素反応による追加ダメージを返す。"""
+        if reaction in {
+            ElementalReaction.VAPORIZE,
+            ElementalReaction.MELT,
+            ElementalReaction.OVERLOADED,
+        }:
+            return 2
+
+        if reaction in {
+            ElementalReaction.ELECTRO_CHARGED,
+            ElementalReaction.FROZEN,
+            ElementalReaction.SUPERCONDUCT,
+            ElementalReaction.QUICKEN,
+            ElementalReaction.BURNING,
+            ElementalReaction.SWIRL,
+            ElementalReaction.CRYSTALLIZE,
+            ElementalReaction.BLOOM,
+        }:
+            return 1
+
+        return 0
 
     def normal_attack(self, player_id: int):
         character = self.state.players[player_id].active_character
