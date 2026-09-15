@@ -24,11 +24,12 @@
 | CPUの基本行動選択 | 実装済み |
 | 合法手生成 `get_legal_actions()` | 実装済み |
 | CPUと合法手生成の接続 | 実装済み |
+| CPU対CPUの1手進行 `step()` | 実装済み |
+| CPU対CPUの自動対戦 `run()` | 実装済み |
 | ダイス・コスト計算 | 未実装 |
 | 元素反応 | 未実装 |
 | キャラクター固有処理の体系化 | 開発中 |
 | カードシステム | 未実装 |
-| 本格的なCPU対CPU対戦ループ | 未実装 |
 | GUI・対戦画面 | 未実装 |
 
 ## 合法手生成
@@ -60,6 +61,24 @@ CPUは合法手一覧から、次の優先順位で行動を選択します。
 
 これは初期段階のヒューリスティックであり、将来的には敵のHP、撃破可能性、元素反応、ダイス、カード、キャラクター相性などを評価します。
 
+## CPU対CPU対戦ループ
+
+2人のプレイヤーオブジェクトを渡すことで、1手または複数手の自動進行ができます。
+
+```python
+from engine.game import Game
+from players.cpu import CpuPlayer
+
+players = [CpuPlayer(), CpuPlayer()]
+
+action = game.step(players)                 # 1手だけ進める
+history = game.run(players, max_actions=1000)  # 最大1000手まで進める
+```
+
+`step()`は現在の手番の合法手を取得し、プレイヤーの`choose_action()`を呼び出して、選択された行動を実行します。`run()`はゲーム終了または`max_actions`到達まで`step()`を繰り返します。
+
+プレイヤーが合法手に含まれない`Action`を返した場合や、合法手が存在しない場合は例外を発生させます。
+
 ## テスト実行
 
 プロジェクトのルートディレクトリで次を実行します。
@@ -73,7 +92,7 @@ python -m pytest
 ```text
 engine/
   actions.py       # ActionとActionType
-  game.py          # ゲーム進行、合法手生成、Action実行
+  game.py          # ゲーム進行、合法手生成、Action実行、対戦ループ
   state.py         # ゲーム状態・プレイヤー・キャラクター状態
 players/
   human.py         # 人間プレイヤー
@@ -84,20 +103,19 @@ tests/
   test_cpu.py
   test_game_actions.py
   test_legal_actions.py
+  test_game_loop.py
 ```
 
 ## 今後の実装目標
 
 ### 短期目標
 
-- CPU対CPUの基本対戦ループ
-- 行動回数・ターン数の上限
 - 対戦ログの整理
 - 合法手生成と `execute_action()` の共通検証
+- ダイス生成・消費・コスト計算
 
 ### 中期目標
 
-- ダイス生成・消費・コスト計算
 - エネルギー増減と元素爆発の消費
 - キャラクター固有の通常攻撃・元素スキル・元素爆発
 - 元素付着と元素反応

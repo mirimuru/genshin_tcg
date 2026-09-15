@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from engine.actions import Action, ActionType
 from engine.state import Element
 
@@ -96,6 +98,41 @@ class Game:
 
         if not self.state.game_over:
             self._advance_turn(player_id)
+
+    def step(self, players: Sequence) -> Action:
+        """現在の手番プレイヤーに1回だけ行動させ、実行したActionを返す。"""
+        if self.state.game_over:
+            raise ValueError("ゲーム終了後は合法手を取得できません")
+        if len(players) != 2:
+            raise ValueError("players must contain exactly two players")
+
+        player_id = self.state.current_player
+        legal_actions = self.get_legal_actions(player_id)
+        if not legal_actions:
+            raise ValueError("現在のプレイヤーに合法手がありません")
+
+        player = players[player_id]
+        action = player.choose_action(self, player_id, legal_actions)
+        if not isinstance(action, Action):
+            raise TypeError("プレイヤーはActionを返す必要があります")
+        if action not in legal_actions:
+            raise ValueError("プレイヤーが合法手に含まれないActionを選択しました")
+
+        self.execute_action(action)
+        self.state.check_game_over()
+        return action
+
+    def run(self, players: Sequence, max_actions: int = 1000) -> list[Action]:
+        """ゲーム終了または最大行動数到達まで自動対戦を実行する。"""
+        if len(players) != 2:
+            raise ValueError("players must contain exactly two players")
+        if max_actions < 1:
+            raise ValueError("max_actions must be positive")
+
+        actions = []
+        while not self.state.game_over and len(actions) < max_actions:
+            actions.append(self.step(players))
+        return actions
 
     def _execute_switch(self, action: Action) -> None:
         if action.target is None:
