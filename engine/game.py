@@ -21,6 +21,11 @@ class Game:
         if not target_character.alive:
             return
 
+        frozen_break_bonus = 0
+        if self._is_frozen(target_character) and element in {Element.PYRO, Element.PHYSICAL}:
+            target_character.statuses.remove("frozen")
+            frozen_break_bonus = 2
+
         reaction = None
         reaction_bonus = 0
         if target_character.elemental_aura is not None:
@@ -29,27 +34,26 @@ class Game:
             if reaction is not None:
                 reaction_bonus = self._reaction_damage_bonus(reaction)
                 target_character.elemental_aura = None
-            else:
+            elif element is not Element.PHYSICAL:
                 target_character.elemental_aura = element
-        else:
+        elif element is not Element.PHYSICAL:
             target_character.elemental_aura = element
 
-        # 草原核は既存分だけをこの攻撃で消費する。
-        # 開花による新規生成分は同じ攻撃では消費しない。
+        if reaction is ElementalReaction.FROZEN and not self._is_frozen(target_character):
+            target_character.statuses.append("frozen")
+
         dendro_core_boost = 0
         if element in {Element.PYRO, Element.ELECTRO} and attacker.dendro_core > 0:
             attacker.dendro_core -= 1
             dendro_core_boost = 2
 
-        # 開花で草原核を1個生成する。最大2個まで保持する。
         if reaction is ElementalReaction.BLOOM:
             attacker.dendro_core = min(2, attacker.dendro_core + 1)
 
-        # 過負荷では対象プレイヤーに強制交代を要求する。
         if reaction is ElementalReaction.OVERLOADED and not target.defeated:
             target.must_switch = True
 
-        total_damage = amount + reaction_bonus + dendro_core_boost
+        total_damage = amount + reaction_bonus + dendro_core_boost + frozen_break_bonus
         if reaction is not None:
             print(f"元素反応：{reaction.value}")
         print(
@@ -58,8 +62,6 @@ class Game:
         )
         target_character.receive_damage(total_damage)
 
-        # 感電・超伝導は対象以外の生存キャラクターにも1ダメージを与える。
-        # 貫通ダメージでは元素反応を発生させず、元素付着も行わない。
         if reaction in {
             ElementalReaction.ELECTRO_CHARGED,
             ElementalReaction.SUPERCONDUCT,
@@ -68,6 +70,10 @@ class Game:
 
         print(f"{target_character.name}のHP：{target_character.hp}/{target_character.max_hp}")
         self.state.check_game_over()
+
+    @staticmethod
+    def _is_frozen(character) -> bool:
+        return "frozen" in character.statuses
 
     @staticmethod
     def _reaction_damage_bonus(reaction: ElementalReaction) -> int:
@@ -103,14 +109,20 @@ class Game:
 
     def normal_attack(self, player_id: int):
         character = self.state.players[player_id].active_character
+        if self._is_frozen(character):
+            raise ValueError("凍結中のキャラクターは攻撃できません")
         character.definition.normal_attack(self, player_id)
 
     def elemental_skill(self, player_id: int):
         character = self.state.players[player_id].active_character
+        if self._is_frozen(character):
+            raise ValueError("凍結中のキャラクターは元素スキルを使用できません")
         character.definition.elemental_skill(self, player_id)
 
     def elemental_burst(self, player_id: int):
         character = self.state.players[player_id].active_character
+        if self._is_frozen(character):
+            raise ValueError("凍結中のキャラクターは元素爆発を使用できません")
         character.definition.elemental_burst(self, player_id)
 
     def get_action_cost(self, action: Action) -> dict[DiceType, int]:
@@ -153,18 +165,19 @@ class Game:
             ]
 
         actions = []
-        normal_attack = Action(player_id, ActionType.NORMAL_ATTACK)
-        skill = Action(player_id, ActionType.ELEMENTAL_SKILL)
-        if player.dice.can_pay(self.get_action_cost(normal_attack)):
-            actions.append(normal_attack)
-        if player.dice.can_pay(self.get_action_cost(skill)):
-            actions.append(skill)
-
         character = player.active_character
-        if character.energy >= character.max_energy:
-            burst = Action(player_id, ActionType.ELEMENTAL_BURST)
-            if player.dice.can_pay(self.get_action_cost(burst)):
-                actions.append(burst)
+        if not self._is_frozen(character):
+            normal_attack = Action(player_id, ActionType.NORMAL_ATTACK)
+            skill = Action(player_id, ActionType.ELEMENTAL_SKILL)
+            if player.dice.can_pay(self.get_action_cost(normal_attack)):
+                actions.append(normal_attack)
+            if player.dice.can_pay(self.get_action_cost(skill)):
+                actions.append(skill)
+
+            if character.energy >= character.max_energy:
+                burst = Action(player_id, ActionType.ELEMENTAL_BURST)
+                if player.dice.can_pay(self.get_action_cost(burst)):
+                    actions.append(burst)
 
         target_dice = self._element_to_dice_type(character.element)
         actions.extend(
@@ -206,6 +219,13 @@ class Game:
 
         if player.requires_switch and action.action_type is not ActionType.SWITCH_CHARACTER:
             raise ValueError("戦闘不能のため強制交代が必要です")
+
+        if self._is_frozen(player.active_character) and action.action_type in {
+            ActionType.NORMAL_ATTACK,
+            ActionType.ELEMENTAL_SKILL,
+            ActionType.ELEMENTAL_BURST,
+        }:
+            raise ValueError("凍結中のキャラクターはこの行動を実行できません")
 
         if action.action_type is ActionType.SWITCH_CHARACTER:
             was_forced_switch = player.requires_switch
@@ -354,12 +374,19 @@ class Game:
     def _advance_turn(self, player_id: int) -> None:
         self.state.current_player = 1 - player_id
 
+    def _clear_frozen_statuses(self) -> None:
+        for player in self.state.players:
+            for character in player.characters:
+                if "frozen" in character.statuses:
+                    character.statuses.remove("frozen")
+
     def _end_round(self, player_id: int) -> None:
         player = self.state.players[player_id]
         player.has_ended_round = True
         opponent_id = 1 - player_id
         opponent = self.state.players[opponent_id]
         if opponent.has_ended_round:
+            self._clear_frozen_statuses()
             self.state.round_number += 1
             self.state.players[0].has_ended_round = False
             self.state.players[1].has_ended_round = False
