@@ -1,3 +1,5 @@
+import random
+
 import pytest
 
 from engine.actions import Action, ActionType
@@ -42,6 +44,21 @@ def test_dice_pool_rejects_insufficient_cost():
     dice = DicePool({DiceType.PYRO: 1})
     with pytest.raises(ValueError):
         dice.pay({DiceType.PYRO: 2})
+
+
+def test_roll_generates_eight_dice_from_all_elemental_types_and_omni():
+    dice = DicePool.roll(random.Random(0), count=8)
+
+    assert dice.total == 8
+    assert dice.count(DiceType.CRYO) == 3
+    assert dice.count(DiceType.ELECTRO) == 2
+    assert dice.count(DiceType.GEO) == 2
+    assert dice.count(DiceType.OMNI) == 1
+
+
+def test_roll_rejects_invalid_count():
+    with pytest.raises(ValueError):
+        DicePool.roll(random.Random(0), count=-1)
 
 
 def test_attack_actions_require_three_dice():
