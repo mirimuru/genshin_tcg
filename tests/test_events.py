@@ -145,6 +145,21 @@ def test_bloom_core_generation_ignores_resolved_damage_event():
     assert attacker.get_combat_status("bloom_core_generation") is not None
 
 
+def test_bloom_reaction_in_deal_damage_is_resolved_by_event_handler():
+    game = make_game()
+    attacker = game.state.players[0]
+    target = game.state.players[1].active_character
+    target.elemental_aura = Element.DENDRO
+    attacker.add_combat_status(create_bloom_core_generation())
+
+    game.deal_damage(0, 1, 1, Element.HYDRO)
+
+    core = attacker.get_combat_status("dendro_core")
+    assert core is not None
+    assert core.usages == 1
+    assert attacker.get_combat_status("bloom_core_generation") is None
+
+
 def test_event_types_are_independent_data_objects():
     damage = DamageEvent(0, 1, 2, Element.PYRO)
     round_end = RoundEndEvent(0)
