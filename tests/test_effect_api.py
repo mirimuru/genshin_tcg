@@ -85,7 +85,7 @@ def test_add_summon():
 
 
 @dataclass
-class TestEvent(GameEvent):
+class EffectTestEvent(GameEvent):
     value: int
 
 
@@ -95,7 +95,7 @@ class EventStatus(StatusDefinition):
     max_usages = 1
 
     def on_event(self, instance, event, game, context):
-        if isinstance(event, TestEvent):
+        if isinstance(event, EffectTestEvent):
             instance.consume()
 
 
@@ -104,7 +104,7 @@ def test_effect_added_through_api_receives_events_and_expires():
     status = StatusInstance(EventStatus)
     game.add_character_status(0, 0, status)
 
-    game._emit_event(TestEvent(1))
+    game._emit_event(EffectTestEvent(1))
 
     assert not game.state.players[0].characters[0].has_status("event_status")
 
