@@ -16,39 +16,42 @@ def make_game():
     return game
 
 
-def test_crystallize_creates_two_point_shield_on_active_character():
+def test_crystallize_creates_one_point_shield_on_active_character():
     game = make_game()
-    target = game.state.players[1].active_character
+    target_player = game.state.players[1]
+    target = target_player.active_character
     target.elemental_aura = Element.PYRO
 
     game.deal_damage(0, 1, 2, Element.GEO)
 
     assert target.hp == 7
-    assert target.shield == 2
+    assert target_player.shield == 1
 
 
 def test_crystallize_shield_reduces_incoming_damage_and_is_consumed():
     game = make_game()
-    target = game.state.players[1].active_character
+    target_player = game.state.players[1]
+    target = target_player.active_character
     target.elemental_aura = Element.PYRO
     game.deal_damage(0, 1, 2, Element.GEO)
 
     game.deal_damage(0, 1, 1, Element.PYRO)
 
     assert target.hp == 7
-    assert target.shield == 1
+    assert target_player.shield == 0
 
 
-def test_crystallize_shield_does_not_stack_above_two():
+def test_crystallize_shield_stacks_up_to_two():
     game = make_game()
-    target = game.state.players[1].active_character
+    target_player = game.state.players[1]
+    target = target_player.active_character
     target.elemental_aura = Element.PYRO
     game.deal_damage(0, 1, 2, Element.GEO)
 
     target.elemental_aura = Element.PYRO
     game.deal_damage(0, 1, 2, Element.GEO)
 
-    assert target.shield == 2
+    assert target_player.shield == 2
 
 
 def test_crystallize_shield_follows_the_active_character_after_switch():
@@ -62,6 +65,6 @@ def test_crystallize_shield_follows_the_active_character_after_switch():
     new_target = target_player.active_character
     game.deal_damage(0, 1, 1, Element.PYRO)
 
-    assert target.shield == 0
+    assert target_player.shield == 0
+    assert target.hp == 7
     assert new_target.hp == 10
-    assert target_player.shield == 1
