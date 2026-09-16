@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional
+from typing import Iterable, List, Optional
 
 from engine.dice import DicePool
 from engine.statuses import StatusInstance
@@ -22,12 +22,100 @@ class GamePhase(Enum):
     ACTION = "action"
 
 
-class CharacterState:
-    def __init__(self, name: str, element: Element, max_hp: int = 10, max_energy: int = 2):
+class CharacterDefinition:
+    """キャラクター固有ルールと固定情報を保持する定義。"""
+
+    def __init__(
+        self,
+        character_id: str,
+        name: str,
+        element: Element,
+        max_hp: int = 10,
+        max_energy: int = 2,
+    ):
+        if not character_id:
+            raise ValueError("character_id must not be empty")
+        if not name:
+            raise ValueError("name must not be empty")
         if max_hp <= 0:
             raise ValueError("max_hp must be greater than 0")
         if max_energy < 0:
             raise ValueError("max_energy must not be negative")
+        self.character_id = character_id
+        self.name = name
+        self.element = element
+        self.max_hp = max_hp
+        self.max_energy = max_energy
+
+    def normal_attack(self, game, player_id: int) -> None:
+        game.deal_damage(player_id, 1 - player_id, 2, Element.PHYSICAL)
+
+    def elemental_skill(self, game, player_id: int) -> None:
+        game.deal_damage(player_id, 1 - player_id, 3, self.element)
+
+    def elemental_burst(self, game, player_id: int) -> None:
+        game.deal_damage(player_id, 1 - player_id, 4, self.element)
+
+
+class CharacterRegistry:
+    """キャラクターIDからCharacterDefinitionを解決するRegistry。"""
+
+    def __init__(self, definitions: Iterable[CharacterDefinition] | None = None):
+        self._definitions: dict[str, CharacterDefinition] = {}
+        if definitions is not None:
+            for definition in definitions:
+                self.register(definition)
+
+    def register(self, definition: CharacterDefinition) -> CharacterDefinition:
+        if not isinstance(definition, CharacterDefinition):
+            raise TypeError("キャラクター定義はCharacterDefinitionである必要があります")
+        if definition.character_id in self._definitions:
+            raise ValueError(f"キャラクターIDが重複しています: {definition.character_id}")
+        self._definitions[definition.character_id] = definition
+        return definition
+
+    def get(self, character_id: str) -> CharacterDefinition:
+        try:
+            return self._definitions[character_id]
+        except KeyError as exc:
+            raise ValueError(f"未登録のキャラクターです: {character_id}") from exc
+
+    def contains(self, character_id: str) -> bool:
+        return character_id in self._definitions
+
+    def __iter__(self):
+        return iter(self._definitions.values())
+
+
+class CharacterState:
+    def __init__(
+        self,
+        name: str,
+        element: Element,
+        max_hp: int = 10,
+        max_energy: int = 2,
+        definition: Optional[CharacterDefinition] = None,
+    ):
+        if definition is not None:
+            if not isinstance(definition, CharacterDefinition):
+                raise TypeError("definitionはCharacterDefinitionである必要があります")
+            name = definition.name
+            element = definition.element
+            max_hp = definition.max_hp
+            max_energy = definition.max_energy
+        else:
+            definition = CharacterDefinition(
+                character_id=f"legacy:{name}",
+                name=name,
+                element=element,
+                max_hp=max_hp,
+                max_energy=max_energy,
+            )
+        if max_hp <= 0:
+            raise ValueError("max_hp must be greater than 0")
+        if max_energy < 0:
+            raise ValueError("max_energy must not be negative")
+        self.definition = definition
         self.name = name
         self.element = element
         self.max_hp = max_hp
@@ -54,7 +142,7 @@ class CharacterState:
 
     def heal(self, amount: int) -> int:
         if amount < 0:
-            raise ValueError("heal amount must not be negative")
+            raise ValueError("damage amount must not be negative")
         old_hp = self.hp
         self.hp = min(self.max_hp, self.hp + amount)
         return self.hp - old_hp
