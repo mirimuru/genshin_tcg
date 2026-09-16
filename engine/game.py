@@ -87,11 +87,11 @@ class Game:
             f"{attacker_character_name(attacker)}が{target_character.name}に"
             f"{total_damage}ダメージ（{element.value}）"
         )
-        target_character.take_damage(total_damage)
+        target.take_damage(total_damage)
 
         # 結晶化のシールドは反応を起こした攻撃の後に生成される。
         if reaction is ElementalReaction.CRYSTALLIZE and target_character.alive:
-            target_character.shield = min(2, target_character.shield + 2)
+            target.shield = min(2, target.shield + 1)
 
         if reaction in {
             ElementalReaction.ELECTRO_CHARGED,
@@ -240,7 +240,7 @@ class Game:
 
     def execute_action(self, action: Action) -> None:
         if not isinstance(action, Action):
-            raise TypeError("action must be an Action")
+            raise TypeError("action must be Action")
         player_id = action.player_id
         if player_id not in (0, 1):
             raise ValueError("player_id must be 0 or 1")
@@ -380,85 +380,59 @@ class Game:
         if player.must_switch:
             player.must_switch = False
 
-    def _execute_tuning(self, action: Action) -> None:
-        if not isinstance(action.target, DiceType):
-            raise ValueError("調和元のダイスが指定されていません")
-
-        player = self.state.players[action.player_id]
-        target = self._element_to_dice_type(player.active_character.element)
-        player.dice.harmonize(action.target, target)
-
     def _require_and_pay_dice(self, action: Action) -> None:
-        player = self.state.players[action.player_id]
         cost = self.get_action_cost(action)
+        player = self.state.players[action.player_id]
         if not player.dice.can_pay(cost):
             raise ValueError("ダイスが不足しています")
         player.dice.pay(cost)
 
     @staticmethod
     def _element_to_dice_type(element: Element) -> DiceType:
-        if element is Element.PYRO:
-            return DiceType.PYRO
-        if element is Element.HYDRO:
-            return DiceType.HYDRO
-        if element is Element.ANEMO:
-            return DiceType.ANEMO
-        if element is Element.ELECTRO:
-            return DiceType.ELECTRO
-        if element is Element.DENDRO:
-            return DiceType.DENDRO
-        if element is Element.CRYO:
-            return DiceType.CRYO
-        if element is Element.GEO:
-            return DiceType.GEO
-        return DiceType.OMNI
+        mapping = {
+            Element.PYRO: DiceType.PYRO,
+            Element.HYDRO: DiceType.HYDRO,
+            Element.ANEMO: DiceType.ANEMO,
+            Element.ELECTRO: DiceType.ELECTRO,
+            Element.DENDRO: DiceType.DENDRO,
+            Element.CRYO: DiceType.CRYO,
+            Element.GEO: DiceType.GEO,
+        }
+        if element not in mapping:
+            return DiceType.OMNI
+        return mapping[element]
 
     def _advance_turn(self, player_id: int) -> None:
         self.state.current_player = 1 - player_id
 
-    def _clear_frozen_statuses(self) -> None:
-        for player in self.state.players:
-            for character in player.characters:
-                if "frozen" in character.statuses:
-                    character.statuses.remove("frozen")
-
-    def _resolve_burning_summons(self) -> None:
-        """燃焼烈火召喚物の使用回数を消費し、相手のアクティブに1炎ダメージを与える。"""
-        for player in self.state.players:
-            usages = player.summons.get("burning_flame", 0)
-            if usages <= 0:
-                continue
-
-            opponent_id = 1 - player.player_id
-            self.deal_damage(player.player_id, opponent_id, 1, Element.PYRO)
-
-            usages = player.summons.get("burning_flame", 0) - 1
-            if usages > 0:
-                player.summons["burning_flame"] = usages
-            else:
-                player.summons.pop("burning_flame", None)
-
-            if self.state.game_over:
-                return
-
     def _end_round(self, player_id: int) -> None:
         player = self.state.players[player_id]
         player.has_ended_round = True
-        opponent_id = 1 - player_id
-        opponent = self.state.players[opponent_id]
-        if opponent.has_ended_round:
-            self._resolve_burning_summons()
-            self._clear_frozen_statuses()
-            self.state.check_game_over()
-            if self.state.game_over:
-                return
-            self.state.round_number += 1
-            self.state.players[0].has_ended_round = False
-            self.state.players[1].has_ended_round = False
-            self._start_roll_phase()
+
+        if not all(other.has_ended_round for other in self.state.players):
+            self._advance_turn(player_id)
             return
-        self.state.current_player = opponent_id
+
+        self._resolve_end_phase()
+        self.state.round_number += 1
+        self.state.phase = GamePhase.ROLL
+        for other in self.state.players:
+            other.has_ended_round = False
+            other.has_rerolled = False
+        self._start_roll_phase()
+
+    def _resolve_end_phase(self) -> None:
+        for player in self.state.players:
+            usages = player.summons.get("burning_flame", 0)
+            if usages > 0:
+                target = self.state.opponent_of(player.player_id)
+                target.active_character.receive_damage(1)
+                if usages <= 1:
+                    player.summons.pop("burning_flame", None)
+                else:
+                    player.summons["burning_flame"] = usages - 1
+            self.state.check_game_over()
 
 
-def attacker_character_name(player):
+def attacker_character_name(player) -> str:
     return player.active_character.name
