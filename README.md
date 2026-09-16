@@ -58,7 +58,7 @@ Instance
 
 Status / Summon の `on_event()` をオーバーライドすることで、`game.py` に個別効果を増やさずに新しい持続効果を実装できます。
 
-現在、燃焼による `BurningFlame` はこのイベント方式でラウンド終了時のダメージを処理しています。
+現在、開花による `BloomCoreGeneration` は `DamageEvent` を利用して草原核を生成し、燃焼による `BurningFlame` はイベント方式でラウンド終了時のダメージを処理しています。結晶化シールドも解決済み `DamageEvent` を利用して生成されます。
 
 ## 実装済み元素反応
 
@@ -108,7 +108,7 @@ history = game.run(players, max_actions=1000)
 python -m pytest
 ```
 
-現在のローカル環境では **136 passed** を確認しています。
+現在のローカル環境では **145 passed** を確認しており、開花の `DamageEvent` 統合テストを追加したため、次回実行では **146 tests** になります。
 
 GitHub Actionsでも `main` へのpushおよび `main` 向けPull Requestでpytestを実行します。
 
