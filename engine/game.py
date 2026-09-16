@@ -5,7 +5,7 @@ import random
 from engine.actions import Action, ActionType
 from engine.cards import CardRegistry
 from engine.dice import DicePool, DiceType
-from engine.effects import create_bloom_core_generation, create_burning_flame, create_catalyzing_field, create_crystallize_shield
+from engine.effects import create_bloom_core_generation, create_burning_flame_generation, create_catalyzing_field, create_crystallize_shield
 from engine.elemental_reactions import ElementalReaction, ReactionResolver
 from engine.events import DamageEvent, EffectContext, GameEvent, RoundEndEvent
 from engine.state import Element, GamePhase
@@ -66,11 +66,7 @@ class Game:
         if reaction is ElementalReaction.OVERLOADED and not target.defeated:
             target.must_switch = True
         if reaction is ElementalReaction.BURNING:
-            existing = attacker.get_summon("burning_flame")
-            if existing is None:
-                attacker.add_summon(create_burning_flame(1))
-            else:
-                existing.usages = min(2, (existing.usages or 0) + 1)
+            attacker.add_combat_status(create_burning_flame_generation())
         if reaction is ElementalReaction.CRYSTALLIZE:
             target.add_combat_status(create_crystallize_shield())
         total_damage = amount + reaction_bonus + frozen_break_bonus
@@ -379,16 +375,10 @@ class Game:
             self.state.current_player = 1 - player_id
 
     def _resolve_end_of_round_effects(self) -> None:
-        for player_id, player in enumerate(self.state.players):
-            burning = player.get_summon("burning_flame")
-            if burning is None or not burning.usages:
-                continue
-            uses = burning.usages
-            player.remove_summon("burning_flame")
-            for _ in range(uses):
-                if self.state.game_over:
-                    break
-                self.deal_damage(player_id, 1 - player_id, 1, Element.PYRO)
+        for player_id in range(2):
+            self._emit_event(RoundEndEvent(player_id))
+            if self.state.game_over:
+                break
         for player in self.state.players:
             for character in player.characters:
                 character.remove_status("frozen")
