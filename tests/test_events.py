@@ -1,4 +1,4 @@
-from engine.effects import create_bloom_core_generation, create_catalyzing_field, create_dendro_core
+from engine.effects import create_bloom_core_generation, create_burning_flame_generation, create_catalyzing_field, create_dendro_core
 from engine.elemental_reactions import ElementalReaction
 from engine.events import DamageEvent, RoundEndEvent
 from engine.game import Game
@@ -158,6 +158,32 @@ def test_bloom_reaction_in_deal_damage_is_resolved_by_event_handler():
     assert core is not None
     assert core.usages == 1
     assert attacker.get_combat_status("bloom_core_generation") is None
+
+
+def test_burning_damage_event_generates_burning_flame():
+    game = make_game()
+    attacker = game.state.players[0]
+    attacker.add_combat_status(create_burning_flame_generation())
+
+    event = DamageEvent(0, 1, 3, Element.PYRO, ElementalReaction.BURNING)
+    game._emit_event(event)
+
+    summon = attacker.get_summon("burning_flame")
+    assert summon is not None
+    assert summon.usages == 1
+    assert attacker.get_combat_status("burning_flame_generation") is None
+
+
+def test_burning_flame_generation_ignores_resolved_damage_event():
+    game = make_game()
+    attacker = game.state.players[0]
+    attacker.add_combat_status(create_burning_flame_generation())
+
+    event = DamageEvent(0, 1, 3, Element.PYRO, ElementalReaction.BURNING, resolved=True)
+    game._emit_event(event)
+
+    assert attacker.get_summon("burning_flame") is None
+    assert attacker.get_combat_status("burning_flame_generation") is not None
 
 
 def test_event_types_are_independent_data_objects():
