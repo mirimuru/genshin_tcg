@@ -13,6 +13,7 @@
 | 機能 | 状態 |
 |---|---|
 | キャラクター・プレイヤー状態管理 | 実装済み |
+| キャラクターDefinition / Registry | 基盤実装済み |
 | HP・エネルギー管理 | 基本実装 |
 | ダメージ処理 | 実装済み |
 | キャラクター交代 | 実装済み |
@@ -29,6 +30,30 @@
 | ラウンド終了イベント | 実装済み |
 | カード定義・Registry | 基盤実装済み |
 | GUI・対戦画面 | 未実装 |
+
+## キャラクターDefinitionのアーキテクチャ
+
+キャラクターの固定情報と固有行動を `CharacterDefinition` に分離し、`CharacterState` はHP・Energy・元素付着・Statusなどの可変状態を保持します。
+
+```text
+CharacterDefinition
+  ├─ character_id / name / element
+  ├─ max_hp / max_energy
+  ├─ normal_attack()
+  ├─ elemental_skill()
+  └─ elemental_burst()
+
+CharacterState
+  ├─ definition
+  ├─ hp / energy
+  ├─ elemental_aura
+  └─ statuses
+
+CharacterRegistry
+  └─ character_id -> CharacterDefinition
+```
+
+現在は基盤として標準的な通常攻撃・元素スキル・元素爆発を持つ `CharacterDefinition` を実装しています。今後、各キャラクターの固有効果をこのDefinitionを継承・実装する形で追加し、`Game` 本体にキャラクター固有の分岐を増やさない構成へ移行します。
 
 ## 状態効果のアーキテクチャ
 
@@ -110,7 +135,7 @@ history = game.run(players, max_actions=1000)
 python -m pytest
 ```
 
-現在 **157 tests / 157 passed** を確認済みです。エネルギー変更イベントのゲーム処理への接続、およびカード使用時のダイス二重支払い修正まで含めたテストスイートです。
+直近では **157 tests / 157 passed** を確認済みです。今回、キャラクターDefinition / Registryの基盤テストを6件追加したため、次回実行時の想定件数は **163 tests** です。新規6件を含む全テストのローカル実行結果は次の検証で確認します。
 
 GitHub Actionsでも `main` へのpushおよび `main` 向けPull Requestでpytestを実行します。
 
@@ -125,22 +150,22 @@ engine/
   elemental_reactions.py # 元素反応ルール
   events.py           # ゲームイベント定義
   game.py             # ゲーム進行・合法手・Action実行・イベント通知
-  state.py            # ゲーム状態・プレイヤー・キャラクター
+  state.py            # ゲーム状態・プレイヤー・キャラクター・CharacterDefinition
   statuses.py         # Status定義・Instance・Registry
-  summons.py         # Summon定義・Instance・Registry
+  summons.py          # Summon定義・Instance・Registry
 players/
   human.py             # 人間プレイヤー基盤
   cpu.py               # ヒューリスティックCPU
 tests/
-  # 各ルール・状態・反応・イベントのテスト
+  # 各ルール・状態・反応・イベント・キャラクターDefinitionのテスト
 ```
 
 ## 今後の実装方針
 
 ### 短期
 
-1. Status / Summon のイベントフックへ既存の個別処理を段階的に移行
-2. キャラクター固有効果をDefinition方式で追加
+1. キャラクターDefinitionを実際のキャラクター固有効果へ拡張
+2. Status / Summon のイベントフックへ既存の個別処理を段階的に移行
 3. カード効果を同じイベント基盤へ接続
 4. 正式な七聖召喚ルールへの対応範囲を拡張
 
