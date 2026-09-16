@@ -44,6 +44,8 @@ class CharacterState:
 
         self.elemental_aura: Optional[Element] = None
         self.statuses = []
+        # 結晶化によるアクティブキャラクター用シールド。最大2ダメージを軽減する。
+        self.shield = 0
 
     @property
     def alive(self) -> bool:
@@ -61,6 +63,18 @@ class CharacterState:
         old_hp = self.hp
         self.hp = max(0, self.hp - amount)
         return old_hp - self.hp
+
+    def take_damage(self, amount: int, *, ignore_shield: bool = False) -> int:
+        """シールドを考慮してダメージを受け、実際に減少したHPを返す。"""
+        if amount < 0:
+            raise ValueError("damage amount must not be negative")
+
+        if ignore_shield or self.shield <= 0:
+            return self.receive_damage(amount)
+
+        absorbed = min(self.shield, amount)
+        self.shield -= absorbed
+        return self.receive_damage(amount - absorbed)
 
     def heal(self, amount: int) -> int:
         """回復し、実際に増加したHPを返す。"""
