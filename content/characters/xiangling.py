@@ -70,5 +70,4 @@ class Xiangling(CharacterDefinition):
         game.deal_damage(player_id, 1 - player_id, 3, Element.PYRO)
 
 
-XIANGling = Xiangling()
-XIANG_LING = XIANGling
+XIANG_LING = Xiangling()
