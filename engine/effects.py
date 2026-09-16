@@ -107,7 +107,24 @@ class BurningFlame(SummonDefinition):
             game.deal_damage(context.owner_id, 1 - context.owner_id, 1, Element.PYRO)
 
 
-DEFAULT_STATUS_REGISTRY = StatusRegistry((CatalyzingField, DendroCore, BloomCoreGeneration, CrystallizeShield, BurningFlameGeneration))
+class PyroInfusion(StatusDefinition):
+    """Physical DMGをPyro DMGへ変換するキャラクター状態。"""
+
+    status_id = "pyro_infusion"
+    name = "炎元素付与"
+    max_usages = 2
+
+    def modify_damage(self, instance, amount, element, game, context):
+        if element is Element.PHYSICAL:
+            return amount, Element.PYRO
+        return amount, element
+
+    def on_event(self, instance, event, game, context):
+        if isinstance(event, RoundEndEvent) and event.player_id == context.owner_id:
+            instance.consume()
+
+
+DEFAULT_STATUS_REGISTRY = StatusRegistry((CatalyzingField, DendroCore, BloomCoreGeneration, CrystallizeShield, BurningFlameGeneration, PyroInfusion))
 DEFAULT_SUMMON_REGISTRY = SummonRegistry((BurningFlame,))
 
 
@@ -129,6 +146,10 @@ def create_crystallize_shield(usages: int = 1) -> StatusInstance:
 
 def create_burning_flame_generation(usages: int = 1) -> StatusInstance:
     return DEFAULT_STATUS_REGISTRY.create("burning_flame_generation", usages=usages)
+
+
+def create_pyro_infusion(usages: int = 2) -> StatusInstance:
+    return DEFAULT_STATUS_REGISTRY.create("pyro_infusion", usages=usages)
 
 
 def create_burning_flame(usages: int = 1) -> SummonInstance:
