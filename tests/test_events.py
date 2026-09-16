@@ -1,6 +1,14 @@
 from engine.effects import create_bloom_core_generation, create_burning_flame_generation, create_catalyzing_field, create_dendro_core
 from engine.elemental_reactions import ElementalReaction
-from engine.events import DamageEvent, RoundEndEvent
+from engine.events import (
+    CharacterSwitchEvent,
+    DamageEvent,
+    ElementalBurstEvent,
+    ElementalSkillEvent,
+    EnergyEvent,
+    NormalAttackEvent,
+    RoundEndEvent,
+)
 from engine.game import Game
 from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
 from engine.statuses import StatusDefinition, StatusInstance
@@ -192,3 +200,88 @@ def test_event_types_are_independent_data_objects():
     assert damage.amount == 2
     assert damage.reaction is None
     assert round_end.player_id == 0
+
+
+def test_normal_attack_emits_start_then_resolved_event():
+    game = make_game()
+    events = []
+
+    class Recorder(StatusDefinition):
+        status_id = "normal_attack_recorder"
+        name = "通常攻撃イベント記録"
+
+        def on_event(self, instance, event, game, context):
+            if isinstance(event, NormalAttackEvent) and event.player_id == context.owner_id:
+                events.append((type(event), event.resolved, event.character_index))
+
+    game.state.players[0].active_character.add_status(StatusInstance(Recorder))
+    game.normal_attack(0)
+
+    assert events == [(NormalAttackEvent, False, 0), (NormalAttackEvent, True, 0)]
+
+
+def test_elemental_skill_and_burst_emit_events():
+    game = make_game()
+    events = []
+
+    class Recorder(StatusDefinition):
+        status_id = "action_recorder"
+        name = "アクションイベント記録"
+
+        def on_event(self, instance, event, game, context):
+            if isinstance(event, (ElementalSkillEvent, ElementalBurstEvent)) and event.player_id == context.owner_id:
+                events.append((type(event), event.resolved))
+
+    game.state.players[0].active_character.add_status(StatusInstance(Recorder))
+    game.elemental_skill(0)
+    game.state.players[0].active_character.energy = game.state.players[0].active_character.max_energy
+    game.elemental_burst(0)
+
+    assert events == [
+        (ElementalSkillEvent, False), (ElementalSkillEvent, True),
+        (ElementalBurstEvent, False), (ElementalBurstEvent, True),
+    ]
+
+
+def test_character_switch_emits_start_then_resolved_event():
+    game = make_game()
+    events = []
+
+    class Recorder(StatusDefinition):
+        status_id = "switch_recorder"
+        name = "交代イベント記録"
+
+        def on_event(self, instance, event, game, context):
+            if isinstance(event, CharacterSwitchEvent) and event.player_id == context.owner_id:
+                events.append((event.from_index, event.to_index, event.resolved))
+
+    game.state.players[0].active_character.add_status(StatusInstance(Recorder))
+    game._execute_switch(type("Switch", (), {"player_id": 0, "target": 1})())
+
+    assert events == [(0, 1, False), (0, 1, True)]
+
+
+def test_status_added_during_event_is_not_reentered_for_same_event():
+    game = make_game()
+    calls = []
+
+    class Added(StatusDefinition):
+        status_id = "added_during_event"
+        name = "イベント中追加"
+
+        def on_event(self, instance, event, game, context):
+            calls.append("added")
+
+    class Adder(StatusDefinition):
+        status_id = "adder_during_event"
+        name = "イベント中追加元"
+
+        def on_event(self, instance, event, game, context):
+            if isinstance(event, RoundEndEvent):
+                game.state.players[context.owner_id].add_combat_status(StatusInstance(Added))
+                calls.append("adder")
+
+    game.state.players[0].add_combat_status(StatusInstance(Adder))
+    game._emit_event(RoundEndEvent(0))
+
+    assert calls == ["adder"]
