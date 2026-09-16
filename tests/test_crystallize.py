@@ -1,0 +1,51 @@
+from engine.game import Game
+from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
+
+
+def make_game():
+    players = []
+    for player_id in (0, 1):
+        characters = [
+            CharacterState("キャラクター1", Element.PYRO),
+            CharacterState("キャラクター2", Element.HYDRO),
+            CharacterState("キャラクター3", Element.CRYO),
+        ]
+        players.append(PlayerState(player_id, characters))
+    game = Game(GameState(players))
+    game.state.phase = GamePhase.ACTION
+    return game
+
+
+def test_crystallize_creates_two_point_shield_on_active_character():
+    game = make_game()
+    target = game.state.players[1].active_character
+    target.elemental_aura = Element.PYRO
+
+    game.deal_damage(0, 1, 2, Element.GEO)
+
+    assert target.hp == 7
+    assert target.shield == 2
+
+
+def test_crystallize_shield_reduces_incoming_damage_and_is_consumed():
+    game = make_game()
+    target = game.state.players[1].active_character
+    target.elemental_aura = Element.PYRO
+    game.deal_damage(0, 1, 2, Element.GEO)
+
+    game.deal_damage(0, 1, 3, Element.PYRO)
+
+    assert target.hp == 6
+    assert target.shield == 1
+
+
+def test_crystallize_shield_does_not_stack_above_two():
+    game = make_game()
+    target = game.state.players[1].active_character
+    target.elemental_aura = Element.PYRO
+    game.deal_damage(0, 1, 2, Element.GEO)
+
+    target.elemental_aura = Element.PYRO
+    game.deal_damage(0, 1, 2, Element.GEO)
+
+    assert target.shield == 2
