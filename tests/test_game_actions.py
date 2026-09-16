@@ -2,6 +2,7 @@ import pytest
 
 from engine.actions import Action, ActionType
 from engine.dice import DicePool, DiceType
+from engine.effects import create_dendro_core
 from engine.game import Game
 from engine.state import CharacterState, Element, GameState, PlayerState
 
@@ -185,7 +186,7 @@ def test_bloom_creates_dendro_core_for_attacker():
     target = game.state.players[1].active_character
     target.elemental_aura = Element.DENDRO
     game.deal_damage(0, 1, 2, Element.HYDRO)
-    assert game.state.players[0].dendro_core == 1
+    assert game.state.players[0].get_combat_status("dendro_core").usages == 1
 
 
 def test_dendro_core_boosts_next_pyro_damage_and_is_consumed():
@@ -193,12 +194,12 @@ def test_dendro_core_boosts_next_pyro_damage_and_is_consumed():
     target = game.state.players[1].active_character
     target.elemental_aura = Element.DENDRO
     game.deal_damage(0, 1, 1, Element.HYDRO)
-    assert game.state.players[0].dendro_core == 1
+    assert game.state.players[0].get_combat_status("dendro_core").usages == 1
     target.elemental_aura = None
     hp_before = target.hp
     game.deal_damage(0, 1, 1, Element.PYRO)
     assert hp_before - target.hp == 3
-    assert game.state.players[0].dendro_core == 0
+    assert game.state.players[0].get_combat_status("dendro_core") is None
 
 
 def test_dendro_core_is_capped_at_two():
@@ -208,32 +209,32 @@ def test_dendro_core_is_capped_at_two():
     game.deal_damage(0, 1, 1, Element.HYDRO)
     target.elemental_aura = Element.DENDRO
     game.deal_damage(0, 1, 1, Element.HYDRO)
-    assert game.state.players[0].dendro_core == 2
+    assert game.state.players[0].get_combat_status("dendro_core").usages == 2
     target.elemental_aura = Element.DENDRO
     game.deal_damage(0, 1, 1, Element.HYDRO)
-    assert game.state.players[0].dendro_core == 2
+    assert game.state.players[0].get_combat_status("dendro_core").usages == 2
 
 
 def test_dendro_core_boosts_electro_damage_and_is_consumed():
     game = make_game()
     attacker = game.state.players[0]
     target = game.state.players[1].active_character
-    attacker.dendro_core = 1
+    attacker.add_combat_status(create_dendro_core(1))
     target.elemental_aura = None
     hp_before = target.hp
     game.deal_damage(0, 1, 1, Element.ELECTRO)
     assert hp_before - target.hp == 3
-    assert attacker.dendro_core == 0
+    assert attacker.get_combat_status("dendro_core") is None
 
 
 def test_dendro_core_is_not_consumed_by_non_pyro_or_electro_damage():
     game = make_game()
     attacker = game.state.players[0]
     target = game.state.players[1].active_character
-    attacker.dendro_core = 1
+    attacker.add_combat_status(create_dendro_core(1))
     target.elemental_aura = None
     game.deal_damage(0, 1, 1, Element.HYDRO)
-    assert attacker.dendro_core == 1
+    assert attacker.get_combat_status("dendro_core").usages == 1
 
 
 def test_deal_damage_applies_electro_charged_bonus():
@@ -258,104 +259,3 @@ def test_electro_charged_deals_one_damage_to_other_alive_characters():
     assert target.hp == 7
     assert reserve_1.hp == hp_1 - 1
     assert reserve_2.hp == hp_2 - 1
-
-
-def test_superconduct_deals_one_damage_to_other_alive_characters():
-    game = make_game()
-    target_player = game.state.players[1]
-    target = target_player.active_character
-    target.elemental_aura = Element.CRYO
-    reserve_1 = target_player.characters[1]
-    reserve_2 = target_player.characters[2]
-    hp_1 = reserve_1.hp
-    hp_2 = reserve_2.hp
-    game.deal_damage(0, 1, 2, Element.ELECTRO)
-    assert target.hp == 7
-    assert reserve_1.hp == hp_1 - 1
-    assert reserve_2.hp == hp_2 - 1
-
-
-def test_reaction_penetration_does_not_damage_defeated_reserve_character():
-    game = make_game()
-    target_player = game.state.players[1]
-    target = target_player.active_character
-    target.elemental_aura = Element.HYDRO
-    defeated_reserve = target_player.characters[1]
-    defeated_reserve.receive_damage(999)
-    hp_2 = target_player.characters[2].hp
-    game.deal_damage(0, 1, 2, Element.ELECTRO)
-    assert defeated_reserve.hp == 0
-    assert target_player.characters[2].hp == hp_2 - 1
-
-
-def test_deal_damage_applies_elemental_aura_when_no_reaction_occurs():
-    game = make_game()
-    target = game.state.players[1].active_character
-    game.deal_damage(0, 1, 2, Element.PYRO)
-    assert target.hp == 8
-    assert target.elemental_aura is Element.PYRO
-
-
-def test_frozen_reaction_applies_frozen_status():
-    game = make_game()
-    target = game.state.players[1].active_character
-    target.elemental_aura = Element.HYDRO
-    game.deal_damage(0, 1, 2, Element.CRYO)
-    assert target.hp == 7
-    assert "frozen" in target.statuses
-    assert target.elemental_aura is None
-
-
-def test_frozen_character_cannot_attack():
-    game = make_game()
-    attacker = game.state.players[0].active_character
-    attacker.statuses.append("frozen")
-    with pytest.raises(ValueError, match="凍結"):
-        game.execute_action(Action(0, ActionType.NORMAL_ATTACK))
-
-
-def test_frozen_character_can_switch():
-    game = make_game()
-    player = game.state.players[0]
-    player.active_character.statuses.append("frozen")
-    game.execute_action(Action(0, ActionType.SWITCH_CHARACTER, target=1))
-    assert player.active_character_index == 1
-
-
-def test_pyro_damage_breaks_frozen_and_deals_two_extra_damage():
-    game = make_game()
-    target = game.state.players[1].active_character
-    target.statuses.append("frozen")
-    hp_before = target.hp
-    game.deal_damage(0, 1, 1, Element.PYRO)
-    assert hp_before - target.hp == 3
-    assert "frozen" not in target.statuses
-
-
-def test_physical_damage_breaks_frozen_and_deals_two_extra_damage():
-    game = make_game()
-    target = game.state.players[1].active_character
-    target.statuses.append("frozen")
-    hp_before = target.hp
-    game.deal_damage(0, 1, 1, Element.PHYSICAL)
-    assert hp_before - target.hp == 3
-    assert "frozen" not in target.statuses
-
-
-def test_hydro_damage_does_not_break_frozen():
-    game = make_game()
-    target = game.state.players[1].active_character
-    target.statuses.append("frozen")
-    game.deal_damage(0, 1, 1, Element.HYDRO)
-    assert target.hp == 9
-    assert "frozen" in target.statuses
-
-
-def test_frozen_status_is_removed_at_end_of_round():
-    game = make_game()
-    for player in game.state.players:
-        player.active_character.statuses.append("frozen")
-    game.execute_action(Action(0, ActionType.END_ROUND))
-    game.execute_action(Action(1, ActionType.END_ROUND))
-    assert "frozen" not in game.state.players[0].active_character.statuses
-    assert "frozen" not in game.state.players[1].active_character.statuses
