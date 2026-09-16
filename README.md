@@ -24,9 +24,25 @@
 | ダイス調和 | 実装済み |
 | ダイス再ロール | 実装済み |
 | ロールフェーズ / アクションフェーズ | 実装済み |
-| 元素反応 | 未実装 |
-| カードシステム | 未実装 |
+| 元素反応 | 基本実装 |
+| Burning / Bloom / Quicken | 実装済み |
+| Electro-Charged / Superconduct / Swirl | 実装済み |
+| Vaporize / Melt / Overloaded / Frozen | 基本実装 |
+| Crystallize / チームシールド | 実装済み |
+| Status / Combat Status | 基盤実装済み |
+| Summon | 基盤実装済み |
+| カードシステム | 基盤実装済み |
 | GUI・対戦画面 | 未実装 |
+
+## 状態効果のアーキテクチャ
+
+ゲーム中の可変な効果は、用途に応じて次の3系統で管理します。
+
+- **Character Status**: 特定キャラクターに付く状態。例: 凍結など
+- **Combat Status**: プレイヤー側に属し、キャラクター交代後も維持される状態。例: Catalyzing Field、Dendro Core、チームシールド
+- **Summon**: ラウンド終了時などに独立して処理される召喚物。例: Burning Flame
+
+各効果は `StatusDefinition` / `StatusInstance`、`SummonDefinition` / `SummonInstance` に分離され、ID・名前・使用回数の定義と、対戦中の残り使用回数を分けて管理します。
 
 ## ラウンド進行
 
@@ -38,10 +54,26 @@
    - 0個を選択してリロールをスキップすることも可能
    - 両プレイヤーのリロール終了後、ACTIONフェーズへ移行
 2. **ACTIONフェーズ**
-   - 通常攻撃、元素スキル、元素爆発、交代、調和などを実行
-   - 両プレイヤーがラウンド終了すると次ラウンドのROLLフェーズへ戻る
+   - 通常攻撃、元素スキル、元素爆発、交代、調和、カード使用などを実行
+   - 両プレイヤーがラウンド終了すると、召喚物などのラウンド終了時効果を処理
+   - その後、次ラウンドのROLLフェーズへ戻る
 
 `GameState.phase` で現在のフェーズを確認できます。
+
+## 元素反応
+
+現在のルールエンジンには、以下の元素反応と関連効果が実装されています。
+
+- Vaporize / Melt / Overloaded
+- Electro-Charged / Superconduct
+- Frozen
+- Swirl
+- Crystallize
+- Burning → `BurningFlame` Summon
+- Bloom → `DendroCore` Combat Status
+- Quicken → `CatalyzingField` Combat Status
+
+反応そのものの判定は `engine/elemental_reactions.py`、対戦中の状態管理は `engine/statuses.py` / `engine/summons.py` / `engine/effects.py` が担当します。
 
 ## ダイスシステム
 
@@ -56,6 +88,17 @@
 
 `DicePool.reroll()` により、選択したダイスだけを再生成できます。テスト時には `random.Random` を渡して再現可能な結果にできます。
 
+## カードシステム
+
+カードは `CardDefinition` と `CardRegistry` により定義と登録を分離しています。
+
+- カードID・名前・コストを定義
+- `can_play()` で使用条件を検証
+- `play()` で効果を実行
+- `Game.execute_action()` から通常のActionとして使用
+
+今後はイベントカード、装備カード、支援カードなどをこの基盤へ追加していきます。
+
 ## CPU
 
 CPUはROLLフェーズでは、アクティブキャラクターの元素と異なる元素ダイスを優先してリロールします。万能ダイスと一致する元素ダイスは保持します。
@@ -69,6 +112,8 @@ ACTIONフェーズでは次の優先順位で行動します。
 5. 通常攻撃
 6. 攻撃・スキルを可能にする調和
 7. ラウンド終了
+
+今後は現在のヒューリスティックを、盤面評価・手札・元素反応・相手の残りHPなどを考慮する評価関数へ発展させます。
 
 ## CPU対CPU対戦ループ
 
@@ -89,51 +134,70 @@ history = game.run(players, max_actions=1000)
 python -m pytest
 ```
 
+元素反応・状態効果については、通常のダメージテストに加えて、`StatusInstance` / `SummonInstance` がゲーム状態へ正しく統合されていることもテストします。
+
 ## ディレクトリ構成
 
 ```text
 engine/
-  actions.py       # ActionとActionType
-  dice.py          # ダイス種別・生成・支払い・調和・リロール
-  game.py          # フェーズ、合法手生成、Action実行、対戦ループ
-  state.py         # ゲーム状態・フェーズ・プレイヤー・キャラクター状態
+  actions.py              # ActionとActionType
+  cards.py                # カード定義・レジストリ
+  dice.py                 # ダイス種別・生成・支払い・調和・リロール
+  effects.py              # 標準的なCombat Status / Summonの定義
+  elemental_reactions.py  # 元素反応の判定
+  game.py                 # フェーズ、合法手生成、ダメージ、Action実行、対戦ループ
+  state.py                # ゲーム・プレイヤー・キャラクター状態
+  statuses.py             # Character/Combat Statusの定義・実体・レジストリ
+  summons.py              # Summonの定義・実体・レジストリ
 players/
-  human.py         # 人間プレイヤー
-  cpu.py           # ヒューリスティックCPU
+  human.py                # 人間プレイヤー
+  cpu.py                  # ヒューリスティックCPU
 tests/
   test_damage.py
-  test_character_switch.py
-  test_cpu.py
-  test_game_actions.py
-  test_legal_actions.py
-  test_game_loop.py
-  test_dice.py
-  test_dice_reroll.py
+  test_elemental_reactions.py
+  test_burning.py
+  test_bloom.py
+  test_quicken.py
+  test_crystallize.py
+  test_swirl.py
+  test_statuses.py
+  test_status_integration.py
+  test_summons.py
+  test_effect_state_integration.py
+  ...
 ```
 
-## 今後の実装目標
+## 今後の実装ロードマップ
 
-### 短期
+### 1. ルールエンジンの完成度向上
 
-- 対戦ログの整理
-- 合法手生成と `execute_action()` の共通検証
 - エネルギー増減の体系化
-- 元素付着と元素反応
+- 元素付着の詳細化
+- Character Status / Combat Status / Summonのイベント処理を共通化
+- ラウンド終了・攻撃前後などのイベントフックを整理
+- 七聖召喚の正式ルールとの差分を一つずつ埋める
 
-### 中期
+### 2. キャラクター・カードのデータ化
 
-- キャラクター固有の状態効果
-- 支援カード・イベントカード・装備カード
-- より正式な七聖召喚ルールへの対応
+- キャラクター定義をデータファイルから読み込める構造へ整理
+- 通常攻撃・元素スキル・元素爆発を定義化
+- イベントカード、装備カード、支援カードを追加
+- 効果を個別ファイルへ分離し、追加・変更を容易にする
 
-### 長期
+### 3. 手動対戦環境
 
-- CPUの評価関数改善
+- コマンドラインまたはWeb UIで手動対戦
+- 盤面・手札・ダイス・状態効果を表示
+- 対戦ログとリプレイを保存
+
+### 4. CPU AI
+
+- 盤面評価関数
+- 相手の手札・状態・残りHPを考慮した行動選択
+- デッキごとの戦略・対策
 - モンテカルロ木探索などの探索ベースAI
 - 対戦データ収集と性能評価
-- GUI / Webインターフェース
-- リプレイ・対戦ログ保存
 
 ## 現時点での制限
 
-このプロジェクトは開発途中であり、七聖召喚の完全なルールを再現していません。特にカード、元素反応、キャラクター固有の状態効果、詳細なゲームルールは今後の実装対象です。
+このプロジェクトは開発途中であり、七聖召喚の完全なルールを再現していません。特にカードの網羅、キャラクター固有効果、細かな優先順位・イベント処理、正式ルールとの差分は今後の実装対象です。
