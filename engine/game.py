@@ -5,7 +5,7 @@ import random
 from engine.actions import Action, ActionType
 from engine.cards import CardRegistry
 from engine.dice import DicePool, DiceType
-from engine.effects import create_burning_flame, create_catalyzing_field, create_dendro_core
+from engine.effects import create_burning_flame, create_catalyzing_field, create_crystallize_shield, create_dendro_core
 from engine.elemental_reactions import ElementalReaction, ReactionResolver
 from engine.events import DamageEvent, EffectContext, GameEvent, RoundEndEvent
 from engine.state import Element, GamePhase
@@ -75,6 +75,8 @@ class Game:
                 attacker.add_summon(create_burning_flame(1))
             else:
                 existing.usages = min(2, (existing.usages or 0) + 1)
+        if reaction is ElementalReaction.CRYSTALLIZE:
+            target.add_combat_status(create_crystallize_shield())
         total_damage = amount + reaction_bonus + frozen_break_bonus
         damage_event = DamageEvent(attacker_id, target_id, total_damage, element, reaction)
         self._emit_event(damage_event)
@@ -84,8 +86,8 @@ class Game:
             print(f"元素反応：{reaction.value}")
         print(f"{attacker_character_name(attacker)}が{target_character.name}に{damage_event.amount}ダメージ（{element.value}）")
         target.take_damage(damage_event.amount)
-        if reaction is ElementalReaction.CRYSTALLIZE and target_character.alive:
-            target.add_shield(1)
+        damage_event.resolved = True
+        self._emit_event(damage_event)
         if reaction in {ElementalReaction.ELECTRO_CHARGED, ElementalReaction.SUPERCONDUCT}:
             self._deal_reaction_penetration_damage(target)
         elif reaction is ElementalReaction.SWIRL and reacted_element is not None:
