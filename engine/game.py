@@ -268,7 +268,6 @@ class Game:
             self._execute_tuning(action)
             self._advance_turn(player_id)
         elif action.action_type is ActionType.PLAY_CARD:
-            self._require_and_pay_dice(action)
             self._execute_card(action)
             self._advance_turn(player_id)
         elif action.action_type is ActionType.END_ROUND:
