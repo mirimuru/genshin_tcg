@@ -1,5 +1,6 @@
 from content.characters.kaeya import KAEYA
-from engine.dice import DiceType
+from engine.actions import Action, ActionType
+from engine.dice import DicePool, DiceType
 from engine.game import Game
 from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
 
@@ -12,6 +13,12 @@ def make_game():
     game = Game(GameState(players))
     game.state.phase = GamePhase.ACTION
     return game
+
+
+def switch(game, player_id, target):
+    game.state.current_player = player_id
+    game.state.players[player_id].dice = DicePool({DiceType.OMNI: 8})
+    game.execute_action(Action(player_id, ActionType.SWITCH_CHARACTER, target=target))
 
 
 def test_kaeya_has_official_stats_and_costs():
@@ -41,7 +48,8 @@ def test_icicle_deals_two_cryo_after_own_character_switch():
     game.elemental_burst(0)
     target = game.state.players[1].active_character
 
-    game.state.players[0].switch_character(1)
+    switch(game, 0, 1)
+
     assert target.hp == 7
     assert game.state.players[0].get_combat_status("kaeya_icicle").usages == 2
 
@@ -52,7 +60,7 @@ def test_icicle_does_not_trigger_on_opponent_switch():
     game.elemental_burst(0)
     target = game.state.players[1].active_character
 
-    game.state.players[1].switch_character(1)
+    switch(game, 1, 1)
 
     assert target.hp == 9
     assert game.state.players[0].get_combat_status("kaeya_icicle").usages == 3
@@ -64,9 +72,9 @@ def test_icicle_expires_after_three_switches():
     game.elemental_burst(0)
     target = game.state.players[1].active_character
 
-    for index in (1, 0, 1):
-        game.state.players[0].switch_character(index)
-        game._emit_event(__import__("engine.events", fromlist=["CharacterSwitchEvent"]).CharacterSwitchEvent(0, 1 - index, index, True))
+    switch(game, 0, 1)
+    switch(game, 0, 0)
+    switch(game, 0, 1)
 
     assert target.hp == 3
     assert game.state.players[0].get_combat_status("kaeya_icicle") is None
