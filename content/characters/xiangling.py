@@ -1,6 +1,11 @@
 from engine.characters import CharacterDefinition
 from engine.dice import DiceType
-from engine.events import ElementalBurstEvent, ElementalSkillEvent, RoundEndEvent
+from engine.events import (
+    CharacterActionEvent,
+    ElementalBurstEvent,
+    ElementalSkillEvent,
+    RoundEndEvent,
+)
 from engine.state import Element
 from engine.statuses import StatusDefinition, StatusInstance
 from engine.summons import SummonDefinition, SummonInstance
@@ -34,7 +39,7 @@ class XianglingActionTrigger(StatusDefinition):
     max_usages = None
 
     def on_event(self, instance, event, game, context):
-        if context.character_index is None:
+        if not isinstance(event, CharacterActionEvent):
             return
         if event.player_id != context.owner_id or event.character_index != context.character_index:
             return
