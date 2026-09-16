@@ -67,10 +67,8 @@ def test_round_end_event_is_dispatched_to_combat_statuses_and_summons():
 
     game._emit_event(RoundEndEvent(player_id=0))
 
-    assert player.get_combat_status("round_end_status") is not None
-    assert player.get_combat_status("round_end_status").usages == 0
-    assert player.get_summon("round_end_summon") is not None
-    assert player.get_summon("round_end_summon").usages == 0
+    assert player.get_combat_status("round_end_status") is None
+    assert player.get_summon("round_end_summon") is None
 
 
 def test_event_types_are_independent_data_objects():
