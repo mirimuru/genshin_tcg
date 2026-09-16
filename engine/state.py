@@ -109,6 +109,15 @@ class PlayerState:
         """強制交代が必要か判定する。"""
         return (self.must_switch or not self.active_character.alive) and not self.defeated
 
+    def add_shield(self, amount: int) -> int:
+        """チームシールドを追加し、最大2ポイントまでに制限する。"""
+        if amount < 0:
+            raise ValueError("shield amount must not be negative")
+
+        old_shield = self.shield
+        self.shield = min(2, self.shield + amount)
+        return self.shield - old_shield
+
     def take_damage(self, amount: int, *, ignore_shield: bool = False) -> int:
         """アクティブキャラクターへダメージを与え、チームシールドを先に消費する。"""
         if amount < 0:
