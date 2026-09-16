@@ -1,4 +1,5 @@
-from engine.dice import DicePool
+from engine.actions import Action, ActionType
+from engine.dice import DicePool, DiceType
 from engine.game import Game
 from engine.state import CharacterState, Element, GameState, PlayerState
 from content.characters.diluc import DILUC
@@ -7,7 +8,7 @@ from content.characters.diluc import DILUC
 def make_game():
     players = [
         PlayerState(0, [DILUC.create_state(), CharacterState("控え1", Element.HYDRO), CharacterState("控え2", Element.CRYO)]),
-        PlayerState(1, [CharacterState("敵", Element.HYDRO), CharacterState("敵2", Element.CRYO), CharacterState("敵3", Element.GEO)]),
+        PlayerState(1, [CharacterState("敵", Element.GEO), CharacterState("敵2", Element.CRYO), CharacterState("敵3", Element.GEO)]),
     ]
     game = Game(GameState(players))
     game.state.players[0].dice = DicePool.default()
@@ -17,13 +18,14 @@ def make_game():
 
 def test_diluc_has_real_tcg_costs_and_energy():
     game = make_game()
-    character = game.state.players[0].active_character
+    normal = Action(0, ActionType.NORMAL_ATTACK)
+    skill = Action(0, ActionType.ELEMENTAL_SKILL)
+    burst = Action(0, ActionType.ELEMENTAL_BURST)
 
-    assert character.max_energy == 3
-    assert game.get_action_cost(type("A", (), {"action_type": __import__("engine.actions", fromlist=["ActionType"]).ActionType.NORMAL_ATTACK, "player_id": 0})()) == {
-        __import__("engine.dice", fromlist=["DiceType"]).DiceType.PYRO: 1,
-        __import__("engine.dice", fromlist=["DiceType"]).DiceType.ANY: 2,
-    }
+    assert game.state.players[0].active_character.max_energy == 3
+    assert game.get_action_cost(normal) == {DiceType.PYRO: 1, DiceType.ANY: 2}
+    assert game.get_action_cost(skill) == {DiceType.PYRO: 3}
+    assert game.get_action_cost(burst) == {DiceType.PYRO: 4}
 
 
 def test_diluc_third_skill_in_round_deals_two_extra_damage():
