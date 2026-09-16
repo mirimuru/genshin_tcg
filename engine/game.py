@@ -5,6 +5,7 @@ import random
 from engine.actions import Action, ActionType
 from engine.cards import CardRegistry
 from engine.dice import DicePool, DiceType
+from engine.effects import create_burning_flame, create_catalyzing_field, create_dendro_core
 from engine.elemental_reactions import ElementalReaction, ReactionResolver
 from engine.state import Element, GamePhase
 
@@ -22,15 +23,19 @@ class Game:
         target_character = target.active_character
         if not target_character.alive:
             return
+
         frozen_break_bonus = 0
         if self._is_frozen(target_character) and element in {Element.PYRO, Element.PHYSICAL}:
-            target_character.statuses.remove("frozen")
+            target_character.remove_status("frozen")
             frozen_break_bonus = 2
-        had_catalyzing_field = attacker.catalyzing_field > 0
+
+        catalyzing_field = attacker.get_combat_status("catalyzing_field")
+        had_catalyzing_field = catalyzing_field is not None and catalyzing_field.usages > 0
         catalyzing_field_boost = 0
         reaction = None
         reaction_bonus = 0
         reacted_element = target_character.elemental_aura
+
         if target_character.elemental_aura is not None:
             result = ReactionResolver.resolve(target_character.elemental_aura, element)
             reaction = result.reaction
@@ -41,41 +46,75 @@ class Game:
                 target_character.elemental_aura = element
         elif element is not Element.PHYSICAL:
             target_character.elemental_aura = element
-        if element in {Element.DENDRO, Element.ELECTRO} and attacker.catalyzing_field > 0:
-            attacker.catalyzing_field -= 1
-            if reaction is not ElementalReaction.QUICKEN:
-                catalyzing_field_boost = 1
+
+        if element in {Element.DENDRO, Element.ELECTRO} and catalyzing_field is not None:
+            if catalyzing_field.usages and catalyzing_field.usages > 0:
+                catalyzing_field.consume()
+                if reaction is not ElementalReaction.QUICKEN:
+                    catalyzing_field_boost = 1
+                attacker.remove_expired_combat_statuses()
+
         if reaction is ElementalReaction.FROZEN and not self._is_frozen(target_character):
-            target_character.statuses.append("frozen")
+            target_character.add_status(self._create_frozen_status())
+
+        dendro_core = attacker.get_combat_status("dendro_core")
         dendro_core_boost = 0
-        if element in {Element.PYRO, Element.ELECTRO} and attacker.dendro_core > 0:
-            attacker.dendro_core -= 1
-            dendro_core_boost = 2
+        if element in {Element.PYRO, Element.ELECTRO} and dendro_core is not None:
+            if dendro_core.usages and dendro_core.usages > 0:
+                dendro_core.consume()
+                dendro_core_boost = 2
+                attacker.remove_expired_combat_statuses()
+
         if reaction is ElementalReaction.BLOOM:
-            attacker.dendro_core = min(2, attacker.dendro_core + 1)
+            existing = attacker.get_combat_status("dendro_core")
+            if existing is None:
+                attacker.add_combat_status(create_dendro_core(1))
+            else:
+                existing.usages = min(2, (existing.usages or 0) + 1)
+
         if reaction is ElementalReaction.OVERLOADED and not target.defeated:
             target.must_switch = True
+
         if reaction is ElementalReaction.BURNING:
-            attacker.summons["burning_flame"] = min(2, attacker.summons.get("burning_flame", 0) + 1)
+            existing = attacker.get_summon("burning_flame")
+            if existing is None:
+                attacker.add_summon(create_burning_flame(1))
+            else:
+                existing.usages = min(2, (existing.usages or 0) + 1)
+
         if reaction is ElementalReaction.QUICKEN and not had_catalyzing_field:
-            attacker.catalyzing_field = 2
+            attacker.add_combat_status(create_catalyzing_field(2))
+
         total_damage = amount + reaction_bonus + catalyzing_field_boost + dendro_core_boost + frozen_break_bonus
         if reaction is not None:
             print(f"元素反応：{reaction.value}")
         print(f"{attacker_character_name(attacker)}が{target_character.name}に{total_damage}ダメージ（{element.value}）")
         target.take_damage(total_damage)
+
         if reaction is ElementalReaction.CRYSTALLIZE and target_character.alive:
             target.add_shield(1)
         if reaction in {ElementalReaction.ELECTRO_CHARGED, ElementalReaction.SUPERCONDUCT}:
             self._deal_reaction_penetration_damage(target)
         elif reaction is ElementalReaction.SWIRL and reacted_element is not None:
             self._deal_swirl_spread_damage(target, reacted_element)
+
         print(f"{target_character.name}のHP：{target_character.hp}/{target_character.max_hp}")
         self.state.check_game_over()
 
     @staticmethod
+    def _create_frozen_status():
+        from engine.statuses import StatusDefinition, StatusInstance
+
+        class Frozen(StatusDefinition):
+            status_id = "frozen"
+            name = "凍結"
+            max_usages = None
+
+        return StatusInstance(Frozen)
+
+    @staticmethod
     def _is_frozen(character) -> bool:
-        return "frozen" in character.statuses
+        return character.has_status("frozen")
 
     @staticmethod
     def _reaction_damage_bonus(reaction: ElementalReaction) -> int:
@@ -363,19 +402,21 @@ class Game:
 
     def _resolve_end_of_round_effects(self) -> None:
         for player_id, player in enumerate(self.state.players):
-            burning_uses = player.summons.get("burning_flame", 0)
-            if burning_uses <= 0:
+            burning = player.get_summon("burning_flame")
+            if burning is None or not burning.usages:
                 continue
-            player.summons.pop("burning_flame", None)
-            for _ in range(burning_uses):
+            uses = burning.usages
+            player.remove_summon("burning_flame")
+            for _ in range(uses):
                 if self.state.game_over:
                     break
                 self.deal_damage(player_id, 1 - player_id, 1, Element.PYRO)
 
         for player in self.state.players:
             for character in player.characters:
-                if "frozen" in character.statuses:
-                    character.statuses.remove("frozen")
+                character.remove_status("frozen")
+            player.remove_expired_combat_statuses()
+            player.remove_expired_summons()
 
     def _start_next_round(self) -> None:
         self.state.round_number += 1
