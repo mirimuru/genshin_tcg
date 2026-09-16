@@ -80,7 +80,8 @@ def test_diluc_pyro_infusion_converts_normal_attack_to_pyro():
 
     game.normal_attack(0)
 
-    assert target.hp == 5
+    # 2 Physical -> 2 Pyro, then Vaporize +2 = 4 damage.
+    assert target.hp == 6
     assert target.elemental_aura is None
 
 
