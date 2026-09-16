@@ -4,7 +4,7 @@ from engine.summons import SummonDefinition, SummonInstance, SummonRegistry
 
 class CatalyzingField(StatusDefinition):
     status_id = "catalyzing_field"
-    name = "草原核"
+    name = "激化フィールド"
     max_usages = 2
 
 
