@@ -1,4 +1,5 @@
 from content.characters.xiangling import XIANG_LING
+from engine.dice import DiceType
 from engine.game import Game
 from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
 
@@ -17,9 +18,9 @@ def test_xiangling_has_official_stats_and_costs():
     state = XIANG_LING.create_state()
     assert state.max_hp == 10
     assert state.max_energy == 2
-    assert XIANG_LING.normal_attack_cost
-    assert XIANG_LING.elemental_skill_cost
-    assert XIANG_LING.elemental_burst_cost
+    assert XIANG_LING.normal_attack_cost == {DiceType.PYRO: 1, DiceType.ANY: 2}
+    assert XIANG_LING.elemental_skill_cost == {DiceType.PYRO: 3}
+    assert XIANG_LING.elemental_burst_cost == {DiceType.PYRO: 4}
 
 
 def test_xiangling_skill_creates_guoba_via_resolved_skill_event():
