@@ -1,3 +1,4 @@
+from engine.events import RoundEndEvent
 from engine.statuses import StatusDefinition, StatusInstance, StatusRegistry
 from engine.summons import SummonDefinition, SummonInstance, SummonRegistry
 
@@ -18,6 +19,16 @@ class BurningFlame(SummonDefinition):
     summon_id = "burning_flame"
     name = "燃焼の炎"
     max_usages = 2
+
+    def on_event(self, instance, event, game, context):
+        if not isinstance(event, RoundEndEvent) or event.player_id != context.owner_id:
+            return
+        uses = instance.usages or 0
+        instance.usages = 0
+        for _ in range(uses):
+            if game.state.game_over:
+                break
+            game.deal_damage(context.owner_id, 1 - context.owner_id, 1, game.state.elements.PYRO if hasattr(game.state, "elements") else __import__("engine.state", fromlist=["Element"]).Element.PYRO)
 
 
 DEFAULT_STATUS_REGISTRY = StatusRegistry((CatalyzingField, DendroCore))
