@@ -5,7 +5,7 @@ import random
 from engine.actions import Action, ActionType
 from engine.cards import CardRegistry
 from engine.dice import DicePool, DiceType
-from engine.effects import create_burning_flame, create_dendro_core
+from engine.effects import create_burning_flame, create_catalyzing_field, create_dendro_core
 from engine.elemental_reactions import ElementalReaction, ReactionResolver
 from engine.events import DamageEvent, EffectContext, GameEvent, RoundEndEvent
 from engine.state import Element, GamePhase
@@ -30,17 +30,11 @@ class Game:
             ]
 
             for status in combat_statuses:
-                status.definition.on_event(
-                    status, event, self, EffectContext(player.player_id)
-                )
+                status.definition.on_event(status, event, self, EffectContext(player.player_id))
             for summon in summons:
-                summon.definition.on_event(
-                    summon, event, self, EffectContext(player.player_id)
-                )
+                summon.definition.on_event(summon, event, self, EffectContext(player.player_id))
             for index, status in character_statuses:
-                status.definition.on_event(
-                    status, event, self, EffectContext(player.player_id, index)
-                )
+                status.definition.on_event(status, event, self, EffectContext(player.player_id, index))
 
             player.remove_expired_combat_statuses()
             player.remove_expired_summons()
@@ -62,7 +56,6 @@ class Game:
         reaction = None
         reaction_bonus = 0
         reacted_element = target_character.elemental_aura
-
         if target_character.elemental_aura is not None:
             result = ReactionResolver.resolve(target_character.elemental_aura, element)
             reaction = result.reaction
@@ -94,14 +87,15 @@ class Game:
             else:
                 existing.usages = min(2, (existing.usages or 0) + 1)
 
-        if reaction is ElementalReaction.QUICKEN and attacker.get_combat_status("catalyzing_field") is None:
-            from engine.effects import create_catalyzing_field
-
-            attacker.add_combat_status(create_catalyzing_field(2))
-
         total_damage = amount + reaction_bonus + frozen_break_bonus
         damage_event = DamageEvent(attacker_id, target_id, total_damage, element, reaction)
         self._emit_event(damage_event)
+
+        # Quicken creates the field after the triggering damage event so that
+        # the newly created field is not consumed by that same damage instance.
+        if reaction is ElementalReaction.QUICKEN and attacker.get_combat_status("catalyzing_field") is None:
+            attacker.add_combat_status(create_catalyzing_field(2))
+
         if reaction is not None:
             print(f"元素反応：{reaction.value}")
         print(f"{attacker_character_name(attacker)}が{target_character.name}に{damage_event.amount}ダメージ（{element.value}）")
@@ -120,12 +114,10 @@ class Game:
     @staticmethod
     def _create_frozen_status():
         from engine.statuses import StatusDefinition, StatusInstance
-
         class Frozen(StatusDefinition):
             status_id = "frozen"
             name = "凍結"
             max_usages = None
-
         return StatusInstance(Frozen)
 
     @staticmethod
@@ -136,12 +128,9 @@ class Game:
     def _reaction_damage_bonus(reaction: ElementalReaction) -> int:
         if reaction in {ElementalReaction.VAPORIZE, ElementalReaction.MELT, ElementalReaction.OVERLOADED}:
             return 2
-        if reaction in {
-            ElementalReaction.ELECTRO_CHARGED, ElementalReaction.FROZEN,
-            ElementalReaction.SUPERCONDUCT, ElementalReaction.QUICKEN,
-            ElementalReaction.BURNING, ElementalReaction.SWIRL,
-            ElementalReaction.CRYSTALLIZE, ElementalReaction.BLOOM,
-        }:
+        if reaction in {ElementalReaction.ELECTRO_CHARGED, ElementalReaction.FROZEN, ElementalReaction.SUPERCONDUCT,
+                         ElementalReaction.QUICKEN, ElementalReaction.BURNING, ElementalReaction.SWIRL,
+                         ElementalReaction.CRYSTALLIZE, ElementalReaction.BLOOM}:
             return 1
         return 0
 
@@ -211,8 +200,7 @@ class Game:
                 return []
             return self._get_reroll_actions(player_id)
         if player.requires_switch:
-            return [Action(player_id, ActionType.SWITCH_CHARACTER, target=index)
-                    for index in player.alive_character_indices()
+            return [Action(player_id, ActionType.SWITCH_CHARACTER, target=index) for index in player.alive_character_indices()
                     if index != player.active_character_index]
         actions = []
         character = player.active_character
@@ -232,12 +220,10 @@ class Game:
             if self._card_is_legal(player_id, card_id):
                 actions.append(action)
         target_dice = self._element_to_dice_type(character.element)
-        actions.extend(Action(player_id, ActionType.ELEMENTAL_TUNING, target=dice_type)
-                       for dice_type in DicePool.ROLLABLE_DICE_TYPES
+        actions.extend(Action(player_id, ActionType.ELEMENTAL_TUNING, target=dice_type) for dice_type in DicePool.ROLLABLE_DICE_TYPES
                        if dice_type not in (DiceType.OMNI, target_dice) and player.dice.count(dice_type) > 0)
         if player.dice.can_pay({DiceType.ANY: 1}):
-            actions.extend(Action(player_id, ActionType.SWITCH_CHARACTER, target=index)
-                           for index in player.alive_character_indices()
+            actions.extend(Action(player_id, ActionType.SWITCH_CHARACTER, target=index) for index in player.alive_character_indices()
                            if index != player.active_character_index)
         actions.append(Action(player_id, ActionType.END_ROUND))
         return actions
@@ -262,9 +248,7 @@ class Game:
             raise ValueError("アクションフェーズではリロールできません")
         if player.requires_switch and action.action_type is not ActionType.SWITCH_CHARACTER:
             raise ValueError("戦闘不能のため強制交代が必要です")
-        if self._is_frozen(player.active_character) and action.action_type in {
-            ActionType.NORMAL_ATTACK, ActionType.ELEMENTAL_SKILL, ActionType.ELEMENTAL_BURST,
-        }:
+        if self._is_frozen(player.active_character) and action.action_type in {ActionType.NORMAL_ATTACK, ActionType.ELEMENTAL_SKILL, ActionType.ELEMENTAL_BURST}:
             raise ValueError("凍結中のキャラクターはこの行動を実行できません")
         if action.action_type is ActionType.SWITCH_CHARACTER:
             was_forced_switch = player.requires_switch
@@ -334,21 +318,19 @@ class Game:
         self.state.check_game_over()
         return action
 
-    def run(self, players: Sequence, max_steps: int = 1000) -> int:
+    def run(self, players: Sequence, max_actions: int = 1000) -> list[Action]:
         if len(players) != 2:
             raise ValueError("players must contain exactly two players")
-        steps = 0
-        while not self.state.game_over and steps < max_steps:
-            self.step(players)
-            steps += 1
-        if not self.state.game_over:
-            raise RuntimeError("max_steps reached before game over")
-        return steps
+        if max_actions < 1:
+            raise ValueError("max_actions must be positive")
+        actions = []
+        while not self.state.game_over and len(actions) < max_actions:
+            actions.append(self.step(players))
+        return actions
 
     def _get_reroll_actions(self, player_id: int) -> list[Action]:
         dice = self.state.players[player_id].dice.as_list()
-        return [Action(player_id, ActionType.REROLL_DICE,
-                       target=tuple(dice[index] for index in range(len(dice)) if mask & (1 << index)))
+        return [Action(player_id, ActionType.REROLL_DICE, target=tuple(dice[index] for index in range(len(dice)) if mask & (1 << index)))
                 for mask in range(1 << len(dice))]
 
     def _execute_reroll(self, action: Action) -> None:
@@ -428,7 +410,6 @@ class Game:
                 if self.state.game_over:
                     break
                 self.deal_damage(player_id, 1 - player_id, 1, Element.PYRO)
-
         for player in self.state.players:
             for character in player.characters:
                 character.remove_status("frozen")
@@ -449,15 +430,9 @@ class Game:
 
     @staticmethod
     def _element_to_dice_type(element: Element) -> DiceType:
-        mapping = {
-            Element.PYRO: DiceType.PYRO,
-            Element.HYDRO: DiceType.HYDRO,
-            Element.ANEMO: DiceType.ANEMO,
-            Element.ELECTRO: DiceType.ELECTRO,
-            Element.DENDRO: DiceType.DENDRO,
-            Element.CRYO: DiceType.CRYO,
-            Element.GEO: DiceType.GEO,
-        }
+        mapping = {Element.PYRO: DiceType.PYRO, Element.HYDRO: DiceType.HYDRO, Element.ANEMO: DiceType.ANEMO,
+                   Element.ELECTRO: DiceType.ELECTRO, Element.DENDRO: DiceType.DENDRO, Element.CRYO: DiceType.CRYO,
+                   Element.GEO: DiceType.GEO}
         if element not in mapping:
             raise ValueError("物理属性のキャラクターには専用ダイスがありません")
         return mapping[element]
