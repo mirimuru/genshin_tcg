@@ -7,7 +7,7 @@ from engine.cards import CardRegistry
 from engine.dice import DicePool, DiceType
 from engine.effects import create_bloom_core_generation, create_burning_flame_generation, create_catalyzing_field, create_crystallize_shield
 from engine.elemental_reactions import ElementalReaction, ReactionResolver
-from engine.events import DamageEvent, EffectContext, GameEvent, RoundEndEvent
+from engine.events import DamageEvent, EffectContext, EnergyEvent, GameEvent, RoundEndEvent
 from engine.state import Element, GamePhase
 
 
@@ -34,6 +34,29 @@ class Game:
             player.remove_expired_summons()
             for character in player.characters:
                 character.remove_expired_statuses()
+
+    def change_energy(self, player_id: int, character_index: int, amount: int, reason: str) -> int:
+        """Energyの増減をイベントとして解決し、実際に変化した値を返す。"""
+        if player_id not in (0, 1):
+            raise ValueError("player_id must be 0 or 1")
+        player = self.state.players[player_id]
+        if not 0 <= character_index < len(player.characters):
+            raise ValueError("character_indexが不正です")
+        if not isinstance(amount, int):
+            raise TypeError("energy amount must be an integer")
+        if amount < 0:
+            character = player.characters[character_index]
+            if character.energy + amount < 0:
+                raise ValueError("Energyが不足しています")
+        event = EnergyEvent(player_id, character_index, amount, reason)
+        self._emit_event(event)
+        character = player.characters[character_index]
+        old_energy = character.energy
+        character.energy = max(0, min(character.max_energy, character.energy + event.amount))
+        event.amount = character.energy - old_energy
+        event.resolved = True
+        self._emit_event(event)
+        return event.amount
 
     def deal_damage(self, attacker_id: int, target_id: int, amount: int, element: Element):
         attacker = self.state.players[attacker_id]
@@ -128,17 +151,23 @@ class Game:
         if self._is_frozen(character):
             raise ValueError("凍結中のキャラクターは攻撃できません")
         character.definition.normal_attack(self, player_id)
+        self.change_energy(player_id, self.state.players[player_id].active_character_index, 1, "normal_attack")
 
     def elemental_skill(self, player_id: int):
         character = self.state.players[player_id].active_character
         if self._is_frozen(character):
             raise ValueError("凍結中のキャラクターは元素スキルを使用できません")
         character.definition.elemental_skill(self, player_id)
+        self.change_energy(player_id, self.state.players[player_id].active_character_index, 1, "elemental_skill")
 
     def elemental_burst(self, player_id: int):
         character = self.state.players[player_id].active_character
         if self._is_frozen(character):
             raise ValueError("凍結中のキャラクターは元素爆発を使用できません")
+        if character.energy < character.max_energy:
+            raise ValueError("元素爆発に必要なEnergyが不足しています")
+        character_index = self.state.players[player_id].active_character_index
+        self.change_energy(player_id, character_index, -character.max_energy, "elemental_burst")
         character.definition.elemental_burst(self, player_id)
 
     def get_action_cost(self, action: Action) -> dict[DiceType, int]:
@@ -220,43 +249,33 @@ class Game:
                 raise ValueError("ロールフェーズではリロールのみ実行できます")
             self._execute_reroll(action)
             return
-        if action.action_type is ActionType.REROLL_DICE:
-            raise ValueError("アクションフェーズではリロールできません")
         if player.requires_switch and action.action_type is not ActionType.SWITCH_CHARACTER:
-            raise ValueError("戦闘不能のため強制交代が必要です")
-        if self._is_frozen(player.active_character) and action.action_type in {ActionType.NORMAL_ATTACK, ActionType.ELEMENTAL_SKILL, ActionType.ELEMENTAL_BURST}:
-            raise ValueError("凍結中のキャラクターはこの行動を実行できません")
-        if action.action_type is ActionType.SWITCH_CHARACTER:
-            was_forced_switch = player.requires_switch
-            if not was_forced_switch and not player.dice.can_pay(self.get_action_cost(action)):
-                raise ValueError("ダイスが不足しています")
+            raise ValueError("強制交代が必要です")
+        if action.action_type in {ActionType.NORMAL_ATTACK, ActionType.ELEMENTAL_SKILL, ActionType.ELEMENTAL_BURST}:
+            self._require_and_pay_dice(action)
+            if action.action_type is ActionType.NORMAL_ATTACK:
+                self.normal_attack(player_id)
+            elif action.action_type is ActionType.ELEMENTAL_SKILL:
+                self.elemental_skill(player_id)
+            else:
+                self.elemental_burst(player_id)
+            self._advance_turn(player_id)
+        elif action.action_type is ActionType.SWITCH_CHARACTER:
+            self._require_and_pay_dice(action)
             self._execute_switch(action)
-            if not was_forced_switch:
-                player.dice.pay(self.get_action_cost(action))
+            self._advance_turn(player_id)
         elif action.action_type is ActionType.ELEMENTAL_TUNING:
             self._execute_tuning(action)
-            return
-        elif action.action_type is ActionType.NORMAL_ATTACK:
+            self._advance_turn(player_id)
+        elif action.action_type is ActionType.PLAY_CARD:
             self._require_and_pay_dice(action)
-            self.normal_attack(player_id)
-        elif action.action_type is ActionType.ELEMENTAL_SKILL:
-            self._require_and_pay_dice(action)
-            self.elemental_skill(player_id)
-        elif action.action_type is ActionType.ELEMENTAL_BURST:
-            self._require_and_pay_dice(action)
-            self.elemental_burst(player_id)
-            player.active_character.energy = 0
+            self._execute_card(action)
+            self._advance_turn(player_id)
         elif action.action_type is ActionType.END_ROUND:
             self._end_round(player_id)
-            return
-        elif action.action_type is ActionType.PLAY_CARD:
-            self._execute_card(action)
         else:
-            raise ValueError(f"未対応のActionTypeです: {action.action_type}")
-        if not self.state.game_over:
-            if action.action_type is ActionType.PLAY_CARD and self.card_registry.get(action.card_id).is_fast_action:
-                return
-            self._advance_turn(player_id)
+            raise ValueError(f"未対応のActionです: {action.action_type}")
+        self.state.check_game_over()
 
     def _execute_card(self, action: Action) -> None:
         player = self.state.players[action.player_id]
@@ -394,7 +413,7 @@ class Game:
             player.has_rerolled = False
             player.dice = DicePool.roll(self.rng)
 
-    def _advance_turn(self, player_id: int) -> None:
+    def _advance_turn(self, player_id: int):
         self.state.current_player = 1 - player_id
 
     @staticmethod
