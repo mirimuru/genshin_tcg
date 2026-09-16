@@ -38,6 +38,25 @@ class DendroCore(StatusDefinition):
         event.amount += 2
 
 
+class BloomCoreGeneration(StatusDefinition):
+    status_id = "bloom_core_generation"
+    name = "草原核生成"
+    max_usages = 1
+
+    def on_event(self, instance, event, game, context):
+        if not isinstance(event, DamageEvent) or event.resolved:
+            return
+        if event.attacker_id != context.owner_id or event.reaction is not ElementalReaction.BLOOM:
+            return
+        player = game.state.players[context.owner_id]
+        existing = player.get_combat_status("dendro_core")
+        if existing is None:
+            player.add_combat_status(create_dendro_core(1))
+        else:
+            existing.usages = min(2, (existing.usages or 0) + 1)
+        instance.consume()
+
+
 class CrystallizeShield(StatusDefinition):
     status_id = "crystallize_shield"
     name = "結晶シールド生成"
@@ -69,7 +88,7 @@ class BurningFlame(SummonDefinition):
             game.deal_damage(context.owner_id, 1 - context.owner_id, 1, Element.PYRO)
 
 
-DEFAULT_STATUS_REGISTRY = StatusRegistry((CatalyzingField, DendroCore, CrystallizeShield))
+DEFAULT_STATUS_REGISTRY = StatusRegistry((CatalyzingField, DendroCore, BloomCoreGeneration, CrystallizeShield))
 DEFAULT_SUMMON_REGISTRY = SummonRegistry((BurningFlame,))
 
 
@@ -79,6 +98,10 @@ def create_catalyzing_field(usages: int = 2) -> StatusInstance:
 
 def create_dendro_core(usages: int = 1) -> StatusInstance:
     return DEFAULT_STATUS_REGISTRY.create("dendro_core", usages=usages)
+
+
+def create_bloom_core_generation(usages: int = 1) -> StatusInstance:
+    return DEFAULT_STATUS_REGISTRY.create("bloom_core_generation", usages=usages)
 
 
 def create_crystallize_shield(usages: int = 1) -> StatusInstance:
