@@ -5,7 +5,7 @@ import random
 from engine.actions import Action, ActionType
 from engine.cards import CardRegistry
 from engine.dice import DicePool, DiceType
-from engine.effects import create_burning_flame, create_catalyzing_field, create_crystallize_shield, create_dendro_core
+from engine.effects import create_bloom_core_generation, create_burning_flame, create_catalyzing_field, create_crystallize_shield
 from engine.elemental_reactions import ElementalReaction, ReactionResolver
 from engine.events import DamageEvent, EffectContext, GameEvent, RoundEndEvent
 from engine.state import Element, GamePhase
@@ -62,11 +62,7 @@ class Game:
         if reaction is ElementalReaction.FROZEN and not self._is_frozen(target_character):
             target_character.add_status(self._create_frozen_status())
         if reaction is ElementalReaction.BLOOM:
-            existing = attacker.get_combat_status("dendro_core")
-            if existing is None:
-                attacker.add_combat_status(create_dendro_core(1))
-            else:
-                existing.usages = min(2, (existing.usages or 0) + 1)
+            attacker.add_combat_status(create_bloom_core_generation())
         if reaction is ElementalReaction.OVERLOADED and not target.defeated:
             target.must_switch = True
         if reaction is ElementalReaction.BURNING:
@@ -258,98 +254,39 @@ class Game:
             self._end_round(player_id)
             return
         elif action.action_type is ActionType.PLAY_CARD:
+            self._require_and_pay_dice(action)
             self._execute_card(action)
         else:
-            raise ValueError(f"未対応のActionTypeです: {action.action_type}")
-        if not self.state.game_over:
-            if action.action_type is ActionType.PLAY_CARD and self.card_registry.get(action.card_id).is_fast_action:
-                return
-            self._advance_turn(player_id)
+            raise NotImplementedError(f"未対応のアクション: {action.action_type}")
+        self._advance_turn(player_id)
 
-    def _execute_card(self, action: Action) -> None:
+    def _execute_switch(self, action: Action) -> None:
         player = self.state.players[action.player_id]
-        if action.card_id is None:
-            raise ValueError("カードIDが指定されていません")
-        try:
-            card = self.card_registry.get(action.card_id)
-        except ValueError as exc:
-            raise NotImplementedError("カードが実装されていません") from exc
-        if action.card_id not in player.hand:
-            raise ValueError("指定されたカードが手札にありません")
-        if not player.dice.can_pay(card.cost):
-            raise ValueError("カードのコストを支払うダイスが不足しています")
-        if not card.can_play(self, action.player_id, action.target):
-            raise ValueError("現在の状態ではそのカードを使用できません")
-        player.dice.pay(card.cost)
-        player.hand.remove(action.card_id)
-        card.play(self, action.player_id, action.target)
-
-    def step(self, players: Sequence) -> Action:
-        if self.state.game_over:
-            raise ValueError("ゲーム終了後は合法手を取得できません")
-        if len(players) != 2:
-            raise ValueError("players must contain exactly two players")
-        player_id = self.state.current_player
-        legal_actions = self.get_legal_actions(player_id)
-        if not legal_actions:
-            raise ValueError("現在のプレイヤーに合法手がありません")
-        action = players[player_id].choose_action(self, player_id, legal_actions)
-        if not isinstance(action, Action):
-            raise TypeError("プレイヤーはActionを返す必要があります")
-        if action not in legal_actions:
-            raise ValueError("プレイヤーが合法手に含まれないActionを選択しました")
-        self.execute_action(action)
-        self.state.check_game_over()
-        return action
-
-    def run(self, players: Sequence, max_actions: int = 1000) -> list[Action]:
-        if len(players) != 2:
-            raise ValueError("players must contain exactly two players")
-        if max_actions < 1:
-            raise ValueError("max_actions must be positive")
-        actions = []
-        while not self.state.game_over and len(actions) < max_actions:
-            actions.append(self.step(players))
-        return actions
-
-    def _get_reroll_actions(self, player_id: int) -> list[Action]:
-        dice = self.state.players[player_id].dice.as_list()
-        return [Action(player_id, ActionType.REROLL_DICE, target=tuple(dice[index] for index in range(len(dice)) if mask & (1 << index))) for mask in range(1 << len(dice))]
+        target_index = action.target
+        if not isinstance(target_index, int):
+            raise ValueError("交代先を指定してください")
+        if target_index == player.active_character_index or target_index not in player.alive_character_indices():
+            raise ValueError("不正な交代先です")
+        player.switch_to(target_index)
 
     def _execute_reroll(self, action: Action) -> None:
         player = self.state.players[action.player_id]
         if player.has_rerolled:
-            raise ValueError("このラウンドではすでにリロール済みです")
-        if not isinstance(action.target, tuple):
-            raise ValueError("リロール対象のダイスがタプルで指定されていません")
-        if any(not isinstance(dice_type, DiceType) or dice_type is DiceType.ANY for dice_type in action.target):
-            raise ValueError("リロール対象が不正です")
-        player.dice.reroll(Counter(action.target), self.rng)
+            raise ValueError("すでにリロール済みです")
+        if not action.dice_to_reroll:
+            raise ValueError("リロール対象が指定されていません")
+        player.dice.reroll(action.dice_to_reroll, self.rng)
         player.has_rerolled = True
-        opponent_id = 1 - action.player_id
-        opponent = self.state.players[opponent_id]
-        if opponent.has_rerolled:
-            self.state.phase = GamePhase.ACTION
-            self.state.current_player = 0
-        else:
-            self.state.current_player = opponent_id
+        self.state.phase = GamePhase.ACTION
 
-    def _start_roll_phase(self) -> None:
-        self.state.phase = GamePhase.ROLL
-        self.state.current_player = 0
-        for player in self.state.players:
-            player.dice = DicePool.roll(self.rng)
-            player.has_rerolled = False
-
-    def _execute_switch(self, action: Action) -> None:
-        if action.target is None:
-            raise ValueError("交代先が指定されていません")
-        player = self.state.players[action.player_id]
-        if not isinstance(action.target, int) or not player.can_switch_to(action.target):
-            raise ValueError("交代先が不正です")
-        player.switch_character(action.target)
-        if player.must_switch:
-            player.must_switch = False
+    def _get_reroll_actions(self, player_id: int) -> list[Action]:
+        player = self.state.players[player_id]
+        actions = []
+        dice_types = list(player.dice.counts.keys())
+        for dice_type in dice_types:
+            if player.dice.count(dice_type) > 0:
+                actions.append(Action(player_id, ActionType.REROLL_DICE, dice_to_reroll=[dice_type]))
+        return actions
 
     def _require_and_pay_dice(self, action: Action) -> None:
         cost = self.get_action_cost(action)
