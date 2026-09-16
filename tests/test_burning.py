@@ -29,7 +29,9 @@ def test_burning_reaction_creates_burning_flame_summon():
 
     game.deal_damage(0, 1, 2, Element.PYRO)
 
-    assert game.state.players[0].summons.get("burning_flame") == 1
+    summon = game.state.players[0].get_summon("burning_flame")
+    assert summon is not None
+    assert summon.usages == 1
     assert target.hp == 7
     assert target.elemental_aura is None
 
@@ -45,7 +47,7 @@ def test_burning_flame_deals_one_pyro_damage_at_end_of_round_and_consumes_usage(
     game.execute_action(Action(1, ActionType.END_ROUND))
 
     assert hp_before - target.hp == 1
-    assert "burning_flame" not in game.state.players[0].summons
+    assert game.state.players[0].get_summon("burning_flame") is None
 
 
 def test_burning_flame_damage_can_end_the_game():
@@ -53,13 +55,14 @@ def test_burning_flame_damage_can_end_the_game():
     target_player = game.state.players[1]
     target = target_player.active_character
     target.elemental_aura = Element.DENDRO
-    # 燃焼反応そのものでも1ダメージ増加するため、反応後にHP1を残す。
     target.receive_damage(7)
     target_player.characters[1].receive_damage(999)
     target_player.characters[2].receive_damage(999)
 
     game.deal_damage(0, 1, 1, Element.PYRO)
-    assert game.state.players[0].summons.get("burning_flame") == 1
+    summon = game.state.players[0].get_summon("burning_flame")
+    assert summon is not None
+    assert summon.usages == 1
     assert target.hp == 1
     assert not game.state.game_over
 
@@ -76,12 +79,12 @@ def test_reapplying_burning_increases_summon_usage_up_to_two():
 
     target.elemental_aura = Element.DENDRO
     game.deal_damage(0, 1, 1, Element.PYRO)
-    assert game.state.players[0].summons.get("burning_flame") == 1
+    assert game.state.players[0].get_summon("burning_flame").usages == 1
 
     target.elemental_aura = Element.DENDRO
     game.deal_damage(0, 1, 1, Element.PYRO)
-    assert game.state.players[0].summons.get("burning_flame") == 2
+    assert game.state.players[0].get_summon("burning_flame").usages == 2
 
     target.elemental_aura = Element.DENDRO
     game.deal_damage(0, 1, 1, Element.PYRO)
-    assert game.state.players[0].summons.get("burning_flame") == 2
+    assert game.state.players[0].get_summon("burning_flame").usages == 2
