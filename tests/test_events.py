@@ -1,4 +1,4 @@
-from engine.effects import create_catalyzing_field, create_dendro_core
+from engine.effects import create_bloom_core_generation, create_catalyzing_field, create_dendro_core
 from engine.elemental_reactions import ElementalReaction
 from engine.events import DamageEvent, RoundEndEvent
 from engine.game import Game
@@ -107,6 +107,42 @@ def test_dendro_core_adds_two_damage_to_pyro_or_electro_damage_event():
 
     assert event.amount == 3
     assert attacker.get_combat_status("dendro_core") is None
+
+
+def test_bloom_damage_event_generates_dendro_core_and_caps_at_two():
+    game = make_game()
+    attacker = game.state.players[0]
+    attacker.add_combat_status(create_bloom_core_generation())
+
+    event = DamageEvent(0, 1, 2, Element.HYDRO, ElementalReaction.BLOOM)
+    game._emit_event(event)
+
+    core = attacker.get_combat_status("dendro_core")
+    assert core is not None
+    assert core.usages == 1
+    assert attacker.get_combat_status("bloom_core_generation") is None
+
+    attacker.add_combat_status(create_bloom_core_generation())
+    event = DamageEvent(0, 1, 2, Element.HYDRO, ElementalReaction.BLOOM)
+    game._emit_event(event)
+    assert attacker.get_combat_status("dendro_core").usages == 2
+
+    attacker.add_combat_status(create_bloom_core_generation())
+    event = DamageEvent(0, 1, 2, Element.HYDRO, ElementalReaction.BLOOM)
+    game._emit_event(event)
+    assert attacker.get_combat_status("dendro_core").usages == 2
+
+
+def test_bloom_core_generation_ignores_resolved_damage_event():
+    game = make_game()
+    attacker = game.state.players[0]
+    attacker.add_combat_status(create_bloom_core_generation())
+
+    event = DamageEvent(0, 1, 2, Element.HYDRO, ElementalReaction.BLOOM, resolved=True)
+    game._emit_event(event)
+
+    assert attacker.get_combat_status("dendro_core") is None
+    assert attacker.get_combat_status("bloom_core_generation") is not None
 
 
 def test_event_types_are_independent_data_objects():
