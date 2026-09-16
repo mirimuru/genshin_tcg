@@ -2,7 +2,8 @@ import pytest
 
 from engine.events import EnergyEvent, EffectContext, GameEvent
 from engine.game import Game
-from engine.state import CharacterState, Element, GameState, PlayerState
+from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
+from engine.statuses import StatusDefinition, StatusInstance
 
 
 class NoOpDefinition:
@@ -27,7 +28,9 @@ def make_game():
         for character in characters:
             character.definition = NoOpDefinition()
         players.append(PlayerState(player_id, characters))
-    return Game(GameState(players))
+    game = Game(GameState(players))
+    game.state.phase = GamePhase.ACTION
+    return game
 
 
 def test_energy_event_is_game_event():
@@ -94,3 +97,43 @@ def test_change_energy_rejects_negative_result():
     game = make_game()
     with pytest.raises(ValueError, match="Energy"):
         game.change_energy(0, 0, -1, "test")
+
+
+def test_energy_event_reports_actual_change_after_clamping():
+    game = make_game()
+    events = []
+
+    class Recorder(StatusDefinition):
+        status_id = "energy_recorder"
+        name = "Energy記録"
+
+        def on_event(self, instance, event, game, context):
+            if isinstance(event, EnergyEvent) and event.player_id == context.owner_id:
+                events.append((event.amount, event.resolved, event.reason))
+
+    game.state.players[0].active_character.add_status(StatusInstance(Recorder))
+    game.state.players[0].active_character.energy = 1
+    assert game.change_energy(0, 0, 5, "test") == 1
+
+    assert events == [(5, False, "test"), (1, True, "test")]
+    assert game.state.players[0].active_character.energy == 2
+
+
+def test_energy_decrease_emits_pre_and_post_events():
+    game = make_game()
+    events = []
+
+    class Recorder(StatusDefinition):
+        status_id = "energy_decrease_recorder"
+        name = "Energy減少記録"
+
+        def on_event(self, instance, event, game, context):
+            if isinstance(event, EnergyEvent):
+                events.append((event.amount, event.resolved))
+
+    game.state.players[0].active_character.add_status(StatusInstance(Recorder))
+    game.state.players[0].active_character.energy = 2
+    game.change_energy(0, 0, -2, "burst")
+
+    assert events == [(-2, False), (-2, True)]
+    assert game.state.players[0].active_character.energy == 0
