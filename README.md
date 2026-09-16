@@ -13,7 +13,8 @@
 | 機能 | 状態 |
 |---|---|
 | キャラクター・プレイヤー状態管理 | 実装済み |
-| キャラクターDefinition / Registry | 基盤実装済み |
+| キャラクターDefinition / Registry | 実装済み |
+| 具体的キャラクターDefinition | ディルックを実装 |
 | HP・エネルギー管理 | 基本実装 |
 | ダメージ処理 | 実装済み |
 | キャラクター交代 | 実装済み |
@@ -51,9 +52,12 @@ CharacterState
 
 CharacterRegistry
   └─ character_id -> CharacterDefinition
+
+content/characters/
+  └─ diluc.py
 ```
 
-現在は基盤として標準的な通常攻撃・元素スキル・元素爆発を持つ `CharacterDefinition` を実装しています。今後、各キャラクターの固有効果をこのDefinitionを継承・実装する形で追加し、`Game` 本体にキャラクター固有の分岐を増やさない構成へ移行します。
+具体的なキャラクターは `content/characters/` に分離します。現在はDefinition方式の実装例としてディルックを追加しています。今後は各キャラクターの実際の七聖召喚上の固有効果をこの方式で追加します。
 
 ## 状態効果のアーキテクチャ
 
@@ -65,31 +69,17 @@ CharacterRegistry
 
 各状態は `Definition` と `Instance` に分離されています。
 
-```text
-Definition
-  └─ 効果のルール・ID・最大使用回数
-
-Instance
-  └─ 現在の使用回数などの可変状態
-```
-
-### イベントシステム
+## イベントシステム
 
 `engine/events.py` にゲームイベントを定義し、`Game._emit_event()` が現在存在する Status / Summon に通知します。
 
 現在のイベント:
 
-- `DamageEvent`: ダメージ計算後、HPへ適用する前後に通知
-- `EnergyEvent`: キャラクターのEnergy増減を表すイベント。通常攻撃・元素スキルによるEnergy獲得や元素爆発による消費をゲーム処理へ接続済み
-- `RoundEndEvent`: 両プレイヤーがラウンド終了した際に通知
-
-Status / Summon の `on_event()` をオーバーライドすることで、`game.py` に個別効果を増やさずに新しい持続効果を実装できます。
-
-現在、開花による `BloomCoreGeneration` は `DamageEvent` を利用して草原核を生成しています。燃焼も `BurningFlameGeneration` により `DamageEvent` から燃焼の炎を生成し、`BurningFlame` が `RoundEndEvent` を受け取ってダメージを処理します。結晶化シールドも解決済み `DamageEvent` を利用して生成されます。
+- `DamageEvent`
+- `EnergyEvent`
+- `RoundEndEvent`
 
 ## 実装済み元素反応
-
-現在のルールエンジンには以下の反応が実装されています。
 
 - 蒸発
 - 溶解
@@ -103,8 +93,6 @@ Status / Summon の `on_event()` をオーバーライドすることで、`game
 - 開花
 - 激化
 
-反応に応じた追加ダメージ、元素付着、強制交代、貫通ダメージ、シールド、燃焼の炎、草原核、激化フィールドなどをテストしています。
-
 ## ラウンド進行
 
 1. **ROLLフェーズ**
@@ -117,17 +105,7 @@ Status / Summon の `on_event()` をオーバーライドすることで、`game
 
 ## CPU
 
-現在のCPUはヒューリスティック方式です。合法手生成を利用して、強制交代、元素爆発、交代、元素スキル、通常攻撃、調和、ラウンド終了などを選択します。
-
-```python
-from engine.game import Game
-from players.cpu import CpuPlayer
-
-players = [CpuPlayer(), CpuPlayer()]
-history = game.run(players, max_actions=1000)
-```
-
-将来的には評価関数を拡張し、探索ベースのAIへ発展させます。
+現在のCPUはヒューリスティック方式です。合法手生成を利用して行動を選択します。
 
 ## テスト
 
@@ -135,37 +113,40 @@ history = game.run(players, max_actions=1000)
 python -m pytest
 ```
 
-直近では **157 tests / 157 passed** を確認済みです。今回、キャラクターDefinition / Registryの基盤テストを6件追加したため、次回実行時の想定件数は **163 tests** です。新規6件を含む全テストのローカル実行結果は次の検証で確認します。
-
-GitHub Actionsでも `main` へのpushおよび `main` 向けPull Requestでpytestを実行します。
+直近のローカル実行では **163 tests / 163 passed** を確認済みです。今回、具体的なディルックDefinitionのテストを3件追加しました。
 
 ## ディレクトリ構成
 
 ```text
 engine/
-  actions.py          # ActionとActionType
-  cards.py            # カード定義・Registry
-  dice.py             # ダイス種別・生成・支払い・調和・リロール
-  effects.py          # 標準Status / Summon定義
-  elemental_reactions.py # 元素反応ルール
-  events.py           # ゲームイベント定義
-  game.py             # ゲーム進行・合法手・Action実行・イベント通知
-  state.py            # ゲーム状態・プレイヤー・キャラクター・CharacterDefinition
-  statuses.py         # Status定義・Instance・Registry
-  summons.py          # Summon定義・Instance・Registry
+  actions.py
+  cards.py
+  dice.py
+  effects.py
+  elemental_reactions.py
+  events.py
+  game.py
+  characters.py       # CharacterDefinition / Registry
+  state.py            # ゲーム状態・キャラクター状態
+  statuses.py
+  summons.py
+content/
+  characters/
+    diluc.py          # ディルックDefinition
 players/
-  human.py             # 人間プレイヤー基盤
-  cpu.py               # ヒューリスティックCPU
+  human.py
+  cpu.py
 tests/
-  # 各ルール・状態・反応・イベント・キャラクターDefinitionのテスト
+  test_character_definitions.py
+  # その他各ルール・状態・反応・イベントのテスト
 ```
 
 ## 今後の実装方針
 
 ### 短期
 
-1. キャラクターDefinitionを実際のキャラクター固有効果へ拡張
-2. Status / Summon のイベントフックへ既存の個別処理を段階的に移行
+1. 実際のキャラクター固有効果をDefinition方式で追加
+2. Character Status / Combat Status / Summonへのイベント委譲を拡張
 3. カード効果を同じイベント基盤へ接続
 4. 正式な七聖召喚ルールへの対応範囲を拡張
 
