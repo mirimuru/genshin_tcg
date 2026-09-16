@@ -7,6 +7,7 @@ from engine.cards import CardRegistry
 from engine.dice import DicePool, DiceType
 from engine.effects import create_burning_flame, create_catalyzing_field, create_dendro_core
 from engine.elemental_reactions import ElementalReaction, ReactionResolver
+from engine.events import DamageEvent, EffectContext, GameEvent, RoundEndEvent
 from engine.state import Element, GamePhase
 
 
@@ -16,6 +17,35 @@ class Game:
         self.rng = rng if rng is not None else random.Random()
         self.card_registry = card_registry if card_registry is not None else CardRegistry()
         self._start_roll_phase()
+
+    def _emit_event(self, event: GameEvent) -> None:
+        """現在存在するStatus/Summonへイベントを通知する。"""
+        for player in self.state.players:
+            combat_statuses = list(player.combat_statuses)
+            summons = list(player.summons.values())
+            character_statuses = [
+                (index, status)
+                for index, character in enumerate(player.characters)
+                for status in list(character.statuses)
+            ]
+
+            for status in combat_statuses:
+                status.definition.on_event(
+                    status, event, self, EffectContext(player.player_id)
+                )
+            for summon in summons:
+                summon.definition.on_event(
+                    summon, event, self, EffectContext(player.player_id)
+                )
+            for index, status in character_statuses:
+                status.definition.on_event(
+                    status, event, self, EffectContext(player.player_id, index)
+                )
+
+            player.remove_expired_combat_statuses()
+            player.remove_expired_summons()
+            for character in player.characters:
+                character.remove_expired_statuses()
 
     def deal_damage(self, attacker_id: int, target_id: int, amount: int, element: Element):
         attacker = self.state.players[attacker_id]
@@ -86,10 +116,12 @@ class Game:
             attacker.add_combat_status(create_catalyzing_field(2))
 
         total_damage = amount + reaction_bonus + catalyzing_field_boost + dendro_core_boost + frozen_break_bonus
+        damage_event = DamageEvent(attacker_id, target_id, total_damage, element, reaction)
+        self._emit_event(damage_event)
         if reaction is not None:
             print(f"元素反応：{reaction.value}")
-        print(f"{attacker_character_name(attacker)}が{target_character.name}に{total_damage}ダメージ（{element.value}）")
-        target.take_damage(total_damage)
+        print(f"{attacker_character_name(attacker)}が{target_character.name}に{damage_event.amount}ダメージ（{element.value}）")
+        target.take_damage(damage_event.amount)
 
         if reaction is ElementalReaction.CRYSTALLIZE and target_character.alive:
             target.add_shield(1)
@@ -401,16 +433,8 @@ class Game:
             self.state.current_player = 1 - player_id
 
     def _resolve_end_of_round_effects(self) -> None:
-        for player_id, player in enumerate(self.state.players):
-            burning = player.get_summon("burning_flame")
-            if burning is None or not burning.usages:
-                continue
-            uses = burning.usages
-            player.remove_summon("burning_flame")
-            for _ in range(uses):
-                if self.state.game_over:
-                    break
-                self.deal_damage(player_id, 1 - player_id, 1, Element.PYRO)
+        for player_id in (0, 1):
+            self._emit_event(RoundEndEvent(player_id))
 
         for player in self.state.players:
             for character in player.characters:
@@ -428,7 +452,13 @@ class Game:
             player.dice = DicePool.roll(self.rng)
 
     def _advance_turn(self, player_id: int) -> None:
-        self.state.current_player = 1 - player_id
+        opponent_id = 1 - player_id
+        opponent = self.state.players[opponent_id]
+        player = self.state.players[player_id]
+        if opponent.has_ended_round:
+            self.state.current_player = player_id
+        else:
+            self.state.current_player = opponent_id
 
     @staticmethod
     def _element_to_dice_type(element: Element) -> DiceType:
@@ -441,8 +471,6 @@ class Game:
             Element.CRYO: DiceType.CRYO,
             Element.GEO: DiceType.GEO,
         }
-        if element not in mapping:
-            raise ValueError("物理属性のキャラクターには専用ダイスがありません")
         return mapping[element]
 
 
