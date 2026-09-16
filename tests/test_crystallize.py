@@ -41,15 +41,13 @@ def test_crystallize_shield_reduces_incoming_damage_and_is_consumed():
     assert target_player.shield == 0
 
 
-def test_crystallize_shield_stacks_up_to_two():
+def test_crystallize_shield_is_capped_at_two():
     game = make_game()
     target_player = game.state.players[1]
-    target = target_player.active_character
-    target_player.shield = 2
-    target.elemental_aura = Element.PYRO
 
-    game.deal_damage(0, 1, 2, Element.GEO)
-
+    assert target_player.add_shield(5) == 2
+    assert target_player.shield == 2
+    assert target_player.add_shield(1) == 0
     assert target_player.shield == 2
 
 
