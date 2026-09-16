@@ -23,31 +23,33 @@ def test_bloom_creates_one_dendro_core_for_attacker():
 
     game.deal_damage(0, 1, 1, Element.DENDRO)
 
-    assert game.state.players[0].dendro_core == 1
+    status = game.state.players[0].get_combat_status("dendro_core")
+    assert status is not None
+    assert status.usages == 1
 
 
 def test_dendro_core_boosts_next_pyro_or_electro_damage_by_two():
     game = make_game()
     attacker = game.state.players[0]
     target = game.state.players[1].active_character
-    attacker.dendro_core = 1
+    attacker.add_combat_status(__import__("engine.effects", fromlist=["create_dendro_core"]).create_dendro_core(1))
 
     game.deal_damage(0, 1, 1, Element.PYRO)
 
     assert target.hp == 7
-    assert attacker.dendro_core == 0
+    assert attacker.get_combat_status("dendro_core") is None
 
 
 def test_dendro_core_is_not_consumed_by_other_elements():
     game = make_game()
     attacker = game.state.players[0]
     target = game.state.players[1].active_character
-    attacker.dendro_core = 1
+    attacker.add_combat_status(__import__("engine.effects", fromlist=["create_dendro_core"]).create_dendro_core(1))
 
     game.deal_damage(0, 1, 1, Element.CRYO)
 
     assert target.hp == 9
-    assert attacker.dendro_core == 1
+    assert attacker.get_combat_status("dendro_core").usages == 1
 
 
 def test_bloom_stacks_dendro_core_up_to_two():
@@ -59,8 +61,8 @@ def test_bloom_stacks_dendro_core_up_to_two():
     target.elemental_aura = Element.HYDRO
     game.deal_damage(0, 1, 1, Element.DENDRO)
 
-    assert game.state.players[0].dendro_core == 2
+    assert game.state.players[0].get_combat_status("dendro_core").usages == 2
 
     target.elemental_aura = Element.HYDRO
     game.deal_damage(0, 1, 1, Element.DENDRO)
-    assert game.state.players[0].dendro_core == 2
+    assert game.state.players[0].get_combat_status("dendro_core").usages == 2
