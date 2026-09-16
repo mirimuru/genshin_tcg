@@ -1,4 +1,7 @@
+from engine.effects import create_crystallize_shield
+from engine.events import DamageEvent
 from engine.game import Game
+from engine.elemental_reactions import ElementalReaction
 from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
 
 
@@ -14,6 +17,20 @@ def make_game():
     game = Game(GameState(players))
     game.state.phase = GamePhase.ACTION
     return game
+
+
+def test_crystallize_shield_is_applied_by_resolved_damage_event():
+    game = make_game()
+    target_player = game.state.players[1]
+    target = target_player.active_character
+    target_player.add_combat_status(create_crystallize_shield())
+
+    event = DamageEvent(0, 1, 3, Element.GEO, ElementalReaction.CRYSTALLIZE, resolved=True)
+    game._emit_event(event)
+
+    assert target_player.shield == 1
+    assert target.hp == 10
+    assert target_player.get_combat_status("crystallize_shield") is None
 
 
 def test_crystallize_creates_one_point_shield_on_active_character():
