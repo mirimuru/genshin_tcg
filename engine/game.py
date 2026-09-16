@@ -74,6 +74,9 @@ class Game:
         if reaction is ElementalReaction.QUICKEN and not had_catalyzing_field:
             attacker.catalyzing_field = 2
 
+        if reaction is ElementalReaction.CRYSTALLIZE:
+            target_character.shield = min(2, target_character.shield + 2)
+
         total_damage = (
             amount
             + reaction_bonus
@@ -87,7 +90,7 @@ class Game:
             f"{attacker_character_name(attacker)}が{target_character.name}に"
             f"{total_damage}ダメージ（{element.value}）"
         )
-        target_character.receive_damage(total_damage)
+        target_character.take_damage(total_damage)
 
         if reaction in {
             ElementalReaction.ELECTRO_CHARGED,
