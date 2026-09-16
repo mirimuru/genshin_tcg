@@ -11,7 +11,7 @@ class DamageBonusStatus(StatusDefinition):
     max_usages = None
 
     def on_event(self, instance, event, game, context):
-        if isinstance(event, DamageEvent) and event.owner_id == context.owner_id:
+        if isinstance(event, DamageEvent) and event.attacker_id == context.owner_id:
             event.amount += 1
 
 
