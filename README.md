@@ -14,11 +14,12 @@
 |---|---|
 | キャラクター・プレイヤー状態管理 | 実装済み |
 | キャラクターDefinition / Registry | 実装済み |
-| 具体的キャラクターDefinition | ディルックを実装 |
+| 具体的キャラクターDefinition | ディルック・香菱を実装 |
 | Character Effect API | 実装済み |
 | キャラクター固有ダメージ変更フック | 実装済み |
 | キャラクター固有コスト定義 | 実装済み |
 | ディルック固有効果 | 実装済み（スキル3回目強化・元素爆発・炎元素付与） |
+| 香菱固有効果 | 実装済み（グゥオパァー・旋火輪をイベント駆動で生成） |
 | HP・エネルギー管理 | 基本実装 |
 | ダメージ処理 | 実装済み |
 | キャラクター交代 | 実装済み |
@@ -30,8 +31,10 @@
 | Combat Status | 実装済み |
 | Summon | 実装済み |
 | Status / Summon イベントフック | 実装済み |
-| ダメージイベント | 実装済み |
-| エネルギー変更イベント | ゲーム処理へ接続済み |
+| キャラクターアクションイベント | 実装済み（通常攻撃・元素スキル・元素爆発の開始/解決） |
+| キャラクター交代イベント | 実装済み（開始/解決） |
+| ダメージイベント | 実装済み（確定前/確定後） |
+| エネルギー変更イベント | 実装済み（変更前/変更後） |
 | ラウンド終了イベント | 実装済み |
 | カード定義・Registry | 基盤実装済み |
 | GUI・対戦画面 | 未実装 |
@@ -41,14 +44,6 @@
 キャラクターの固定情報と固有行動を `CharacterDefinition` に分離し、`CharacterState` はHP・Energy・元素付着・Statusなどの可変状態を保持します。
 
 キャラクター固有効果からは共通の **Character Effect API** を利用でき、`Game` にキャラクターID/classごとの条件分岐を追加せずに状態効果を生成できます。
-
-現在の共通API:
-
-- `Game.add_character_status(player_id, character_index, status)`
-- `Game.add_combat_status(player_id, status)`
-- `Game.add_summon(player_id, summon)`
-
-さらにCharacter Statusには、ダメージ確定前にダメージ量・元素を変更できる `modify_damage()` フックを追加しています。これにより元素付与などをキャラクター固有Definition側から共通のダメージ処理へ接続できます。
 
 ```text
 CharacterDefinition
@@ -63,8 +58,7 @@ CharacterDefinition
        │    ├─ add_combat_status()
        │    └─ add_summon()
        │
-       └─ Character Status
-            └─ modify_damage()
+       └─ Character Status / Combat Status / Summon
 
 CharacterState
   ├─ definition
@@ -76,7 +70,8 @@ CharacterRegistry
   └─ character_id -> CharacterDefinition
 
 content/characters/
-  └─ diluc.py
+  ├─ diluc.py
+  └─ xiangling.py
 ```
 
 ### ディルック
@@ -90,7 +85,11 @@ content/characters/
 - 炎元素付与中は物理ダメージを炎ダメージへ変換
 - 元素スキル使用回数はCharacter Statusのデータとして保持し、ラウンド終了時にリセット
 
-これは今後追加するキャラクターでも利用できるよう、固有ロジックを `content/characters/` に分離しています。
+### 香菱
+
+香菱はイベント駆動型キャラクターのリファレンス実装として追加しています。カードデータでは、通常攻撃が2物理ダメージ、元素スキル「グゥオパァー出撃」がグゥオパァーを2回使用で生成、元素爆発「旋火輪」が3炎ダメージと旋火輪を2回使用で生成します。
+
+実装では `ElementalSkillEvent` / `ElementalBurstEvent` の解決イベントを `Character Status` が購読し、対応する `Summon` を生成します。グゥオパァーは `RoundEndEvent`、旋火輪は後続の `ElementalSkillEvent` に反応してダメージを与えます。これにより、キャラクター固有処理を `Game` のキャラクターID分岐へ追加せずに実装できます。
 
 ## 状態効果のアーキテクチャ
 
@@ -98,19 +97,25 @@ content/characters/
 
 - **Character Status**: 個々のキャラクターに付与される状態
 - **Combat Status**: プレイヤー側に保持され、交代しても維持される状態
-- **Summon**: プレイヤー側に保持され、ラウンド終了などのイベントで処理される召喚物
+- **Summon**: プレイヤー側に保持され、ラウンド終了や後続アクションなどのイベントで処理される召喚物
 
 各状態は `Definition` と `Instance` に分離されています。`StatusInstance` は追加の状態データを `data` として保持でき、キャラクター固有の使用回数やラウンド内カウンタにも利用できます。
 
 ## イベントシステム
 
-`engine/events.py` にゲームイベントを定義し、`Game._emit_event()` が現在存在する Status / Summon に通知します。
+`engine/events.py` にゲームイベントを定義し、`Game._emit_event()` がイベント開始時点で存在する Status / Summon をスナップショットとして取得して通知します。
 
 現在のイベント:
 
+- `NormalAttackEvent`
+- `ElementalSkillEvent`
+- `ElementalBurstEvent`
+- `CharacterSwitchEvent`
 - `DamageEvent`
 - `EnergyEvent`
 - `RoundEndEvent`
+
+キャラクターアクションと交代イベントには `resolved` フラグがあり、開始通知と解決通知を同じイベント型で扱います。Damage / Energyについても、確定前と確定後を同じイベント境界で処理します。
 
 ## 実装済み元素反応
 
@@ -146,16 +151,17 @@ content/characters/
 python -m pytest
 ```
 
-既存のテストに加えて、ディルックの実際のTCG効果について以下をテストしています。
+イベント駆動部分では、以下をテストしています。
 
-- スキル3回目のダメージ増加
-- ラウンド終了によるスキル使用回数リセット
-- 元素爆発の8ダメージとEnergy 3
-- 炎元素付与による物理→炎変換
-- 炎元素付与の2ラウンド持続
-- ディルック固有のダイスコスト
+- 通常攻撃・元素スキル・元素爆発の開始/解決イベント
+- キャラクター交代の開始/解決イベント
+- Status / Summonのイベント購読とスナップショット性
+- DamageEventの変更と実ダメージへの反映
+- EnergyEventの上限・下限適用後の実変化量
+- 香菱のグゥオパァー・旋火輪のイベント駆動生成と消費
+- ディルックの既存固有効果
 
-テストコード上のpytest警告も整理し、警告なしで実行できる状態を目指しています。今回の変更後の実測テスト結果はローカル環境で確認予定です。
+GitHub Actionsでもpytestを実行しています。今回の実装については、最終的なローカルpytest結果を確認後にテスト総数を更新します。
 
 ## ディレクトリ構成
 
@@ -168,7 +174,7 @@ engine/
   effect_api.py       # Character / Combat Status / Summon共通API
   effects.py
   elemental_reactions.py
-  events.py
+  events.py           # ゲームイベント定義
   game.py
   characters.py       # CharacterDefinition / Registry
   state.py            # ゲーム状態・キャラクター状態
@@ -177,6 +183,7 @@ engine/
 content/
   characters/
     diluc.py          # ディルックDefinition
+    xiangling.py      # 香菱Definition・固有Summon
 players/
   human.py
   cpu.py
@@ -184,6 +191,9 @@ tests/
   test_character_definitions.py
   test_diluc_effects.py
   test_effect_api.py
+  test_energy.py
+  test_events.py
+  test_xiangling.py
   # その他各ルール・状態・反応・イベントのテスト
 ```
 
