@@ -1,3 +1,5 @@
+from engine.effects import create_catalyzing_field, create_dendro_core
+from engine.elemental_reactions import ElementalReaction
 from engine.events import DamageEvent, RoundEndEvent
 from engine.game import Game
 from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
@@ -69,6 +71,42 @@ def test_round_end_event_is_dispatched_to_combat_statuses_and_summons():
 
     assert player.get_combat_status("round_end_status") is None
     assert player.get_summon("round_end_summon") is None
+
+
+def test_catalyzing_field_applies_non_quicken_dendro_or_electro_bonus_from_damage_event():
+    game = make_game()
+    attacker = game.state.players[0]
+    attacker.add_combat_status(create_catalyzing_field(2))
+
+    event = DamageEvent(0, 1, 1, Element.DENDRO, None)
+    game._emit_event(event)
+
+    assert event.amount == 2
+    assert attacker.get_combat_status("catalyzing_field").usages == 1
+
+
+def test_catalyzing_field_is_consumed_without_bonus_on_quicken_damage_event():
+    game = make_game()
+    attacker = game.state.players[0]
+    attacker.add_combat_status(create_catalyzing_field(2))
+
+    event = DamageEvent(0, 1, 1, Element.ELECTRO, ElementalReaction.QUICKEN)
+    game._emit_event(event)
+
+    assert event.amount == 1
+    assert attacker.get_combat_status("catalyzing_field").usages == 1
+
+
+def test_dendro_core_adds_two_damage_to_pyro_or_electro_damage_event():
+    game = make_game()
+    attacker = game.state.players[0]
+    attacker.add_combat_status(create_dendro_core(1))
+
+    event = DamageEvent(0, 1, 1, Element.PYRO, None)
+    game._emit_event(event)
+
+    assert event.amount == 3
+    assert attacker.get_combat_status("dendro_core") is None
 
 
 def test_event_types_are_independent_data_objects():
