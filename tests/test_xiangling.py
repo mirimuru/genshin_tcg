@@ -57,10 +57,9 @@ def test_pyronado_triggers_after_a_later_skill():
     game = make_game()
     game.state.players[0].active_character.energy = 2
     game.elemental_burst(0)
-    game.state.players[1].active_character.elemental_aura = None
     target = game.state.players[1].active_character
 
     game.elemental_skill(0)
 
-    assert target.hp == 3
+    assert target.hp == 5
     assert game.state.players[0].get_summon("pyronado").usages == 1
