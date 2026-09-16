@@ -113,7 +113,7 @@ content/characters/
 python -m pytest
 ```
 
-直近のローカル実行では **163 tests / 163 passed** を確認済みです。今回、具体的なディルックDefinitionのテストを3件追加しました。
+直近のローカル実行では **166 tests / 166 passed** を確認済みです。キャラクターDefinition / Registry、ディルックDefinition、キャラクター交代を含む現在のテストスイートがすべて通過しています。
 
 ## ディレクトリ構成
 
