@@ -1,4 +1,5 @@
-from engine.events import RoundEndEvent
+from engine.elemental_reactions import ElementalReaction
+from engine.events import DamageEvent, RoundEndEvent
 from engine.state import Element
 from engine.statuses import StatusDefinition, StatusInstance, StatusRegistry
 from engine.summons import SummonDefinition, SummonInstance, SummonRegistry
@@ -9,11 +10,32 @@ class CatalyzingField(StatusDefinition):
     name = "激化フィールド"
     max_usages = 2
 
+    def on_event(self, instance, event, game, context):
+        if not isinstance(event, DamageEvent) or event.attacker_id != context.owner_id:
+            return
+        if event.element not in {Element.DENDRO, Element.ELECTRO}:
+            return
+        if not instance.usages:
+            return
+        instance.consume()
+        if event.reaction is not ElementalReaction.QUICKEN:
+            event.amount += 1
+
 
 class DendroCore(StatusDefinition):
     status_id = "dendro_core"
     name = "草原核"
     max_usages = 2
+
+    def on_event(self, instance, event, game, context):
+        if not isinstance(event, DamageEvent) or event.attacker_id != context.owner_id:
+            return
+        if event.element not in {Element.PYRO, Element.ELECTRO}:
+            return
+        if not instance.usages:
+            return
+        instance.consume()
+        event.amount += 2
 
 
 class BurningFlame(SummonDefinition):
