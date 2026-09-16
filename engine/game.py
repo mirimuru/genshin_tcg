@@ -35,6 +35,20 @@ class Game:
             for character in player.characters:
                 character.remove_expired_statuses()
 
+    def _modify_damage_input(self, attacker_id: int, amount: int, element: Element):
+        """攻撃者のCharacter Statusでダメージ量・元素を確定前に変更する。"""
+        character = self.state.players[attacker_id].active_character
+        for status in list(character.statuses):
+            amount, element = status.definition.modify_damage(
+                status,
+                amount,
+                element,
+                self,
+                EffectContext(attacker_id, self.state.players[attacker_id].active_character_index),
+            )
+        character.remove_expired_statuses()
+        return amount, element
+
     def change_energy(self, player_id: int, character_index: int, amount: int, reason: str) -> int:
         """Energyの増減をイベントとして解決し、実際に変化した値を返す。"""
         if player_id not in (0, 1):
@@ -59,6 +73,7 @@ class Game:
         return event.amount
 
     def deal_damage(self, attacker_id: int, target_id: int, amount: int, element: Element):
+        amount, element = self._modify_damage_input(attacker_id, amount, element)
         attacker = self.state.players[attacker_id]
         target = self.state.players[target_id]
         target_character = target.active_character
@@ -175,7 +190,12 @@ class Game:
             return {DiceType.ANY: 1}
         if action.action_type in {ActionType.NORMAL_ATTACK, ActionType.ELEMENTAL_SKILL, ActionType.ELEMENTAL_BURST}:
             character = self.state.players[action.player_id].active_character
-            return {self._element_to_dice_type(character.element): 3}
+            default_cost = {self._element_to_dice_type(character.element): 3}
+            if action.action_type is ActionType.NORMAL_ATTACK:
+                return dict(getattr(character.definition, "normal_attack_cost", default_cost))
+            if action.action_type is ActionType.ELEMENTAL_SKILL:
+                return dict(getattr(character.definition, "elemental_skill_cost", default_cost))
+            return dict(getattr(character.definition, "elemental_burst_cost", default_cost))
         if action.action_type is ActionType.PLAY_CARD:
             if action.card_id is None:
                 return {}
