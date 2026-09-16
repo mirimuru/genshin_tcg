@@ -14,11 +14,15 @@ class StatusDefinition(ABC):
     def on_event(self, instance, event, game, context) -> None:
         """イベントフック。必要な状態だけオーバーライドする。"""
 
+    def modify_damage(self, instance, amount, element, game, context):
+        """ダメージ確定前に量・元素を変更する。"""
+        return amount, element
+
 
 class StatusInstance:
     """ゲーム中に存在する1つのStatusDefinitionの実体。"""
 
-    def __init__(self, definition: type[StatusDefinition] | StatusDefinition, *, usages: int | None = None):
+    def __init__(self, definition: type[StatusDefinition] | StatusDefinition, *, usages: int | None = None, data: dict | None = None):
         self.definition = definition() if isinstance(definition, type) else definition
         if not isinstance(self.definition, StatusDefinition):
             raise TypeError("状態定義はStatusDefinitionまたはそのサブクラスである必要があります")
@@ -30,10 +34,11 @@ class StatusInstance:
         if usages is None:
             usages = max_usages
         if usages is not None and usages < 0:
-            raise ValueError("usages must not be負です")
+            raise ValueError("usages must be負です")
         if max_usages is not None and usages is not None and usages > max_usages:
             raise ValueError("usages cannot exceed max_usages")
         self.usages = usages
+        self.data = dict(data or {})
 
     @property
     def status_id(self) -> str:
@@ -81,8 +86,8 @@ class StatusRegistry:
         except KeyError as exc:
             raise ValueError(f"未登録の状態です: {status_id}") from exc
 
-    def create(self, status_id: str, *, usages: int | None = None) -> StatusInstance:
-        return StatusInstance(self.get(status_id), usages=usages)
+    def create(self, status_id: str, *, usages: int | None = None, data: dict | None = None) -> StatusInstance:
+        return StatusInstance(self.get(status_id), usages=usages, data=data)
 
     def __contains__(self, status_id: str) -> bool:
         return status_id in self._statuses
