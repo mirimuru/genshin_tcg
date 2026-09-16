@@ -1,3 +1,4 @@
+from engine.effects import create_dendro_core
 from engine.game import Game
 from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
 
@@ -32,7 +33,7 @@ def test_dendro_core_boosts_next_pyro_or_electro_damage_by_two():
     game = make_game()
     attacker = game.state.players[0]
     target = game.state.players[1].active_character
-    attacker.add_combat_status(__import__("engine.effects", fromlist=["create_dendro_core"]).create_dendro_core(1))
+    attacker.add_combat_status(create_dendro_core(1))
 
     game.deal_damage(0, 1, 1, Element.PYRO)
 
@@ -44,7 +45,7 @@ def test_dendro_core_is_not_consumed_by_other_elements():
     game = make_game()
     attacker = game.state.players[0]
     target = game.state.players[1].active_character
-    attacker.add_combat_status(__import__("engine.effects", fromlist=["create_dendro_core"]).create_dendro_core(1))
+    attacker.add_combat_status(create_dendro_core(1))
 
     game.deal_damage(0, 1, 1, Element.CRYO)
 
