@@ -25,14 +25,7 @@ class GamePhase(Enum):
 class CharacterDefinition:
     """キャラクター固有ルールと固定情報を保持する定義。"""
 
-    def __init__(
-        self,
-        character_id: str,
-        name: str,
-        element: Element,
-        max_hp: int = 10,
-        max_energy: int = 2,
-    ):
+    def __init__(self, character_id: str, name: str, element: Element, max_hp: int = 10, max_energy: int = 2):
         if not character_id:
             raise ValueError("character_id must not be empty")
         if not name:
@@ -46,6 +39,15 @@ class CharacterDefinition:
         self.element = element
         self.max_hp = max_hp
         self.max_energy = max_energy
+
+    def create_state(self):
+        return CharacterState(
+            name=self.name,
+            element=self.element,
+            max_hp=self.max_hp,
+            max_energy=self.max_energy,
+            definition=self,
+        )
 
     def normal_attack(self, game, player_id: int) -> None:
         game.deal_damage(player_id, 1 - player_id, 2, Element.PHYSICAL)
@@ -62,9 +64,8 @@ class CharacterRegistry:
 
     def __init__(self, definitions: Iterable[CharacterDefinition] | None = None):
         self._definitions: dict[str, CharacterDefinition] = {}
-        if definitions is not None:
-            for definition in definitions:
-                self.register(definition)
+        for definition in definitions or ():
+            self.register(definition)
 
     def register(self, definition: CharacterDefinition) -> CharacterDefinition:
         if not isinstance(definition, CharacterDefinition):
@@ -88,33 +89,13 @@ class CharacterRegistry:
 
 
 class CharacterState:
-    def __init__(
-        self,
-        name: str,
-        element: Element,
-        max_hp: int = 10,
-        max_energy: int = 2,
-        definition: Optional[CharacterDefinition] = None,
-    ):
+    def __init__(self, name: str, element: Element, max_hp: int = 10, max_energy: int = 2, definition: Optional[CharacterDefinition] = None):
         if definition is not None:
             if not isinstance(definition, CharacterDefinition):
                 raise TypeError("definitionはCharacterDefinitionである必要があります")
-            name = definition.name
-            element = definition.element
-            max_hp = definition.max_hp
-            max_energy = definition.max_energy
+            name, element, max_hp, max_energy = definition.name, definition.element, definition.max_hp, definition.max_energy
         else:
-            definition = CharacterDefinition(
-                character_id=f"legacy:{name}",
-                name=name,
-                element=element,
-                max_hp=max_hp,
-                max_energy=max_energy,
-            )
-        if max_hp <= 0:
-            raise ValueError("max_hp must be greater than 0")
-        if max_energy < 0:
-            raise ValueError("max_energy must not be negative")
+            definition = CharacterDefinition(f"legacy:{name}", name, element, max_hp, max_energy)
         self.definition = definition
         self.name = name
         self.element = element
@@ -148,171 +129,76 @@ class CharacterState:
         return self.hp - old_hp
 
     def add_status(self, status: StatusInstance) -> StatusInstance:
-        if not isinstance(status, StatusInstance):
-            raise TypeError("状態はStatusInstanceである必要があります")
-        self.remove_status(status.status_id)
-        self.statuses.append(status)
-        return status
+        if not isinstance(status, StatusInstance): raise TypeError("状態はStatusInstanceである必要があります")
+        self.remove_status(status.status_id); self.statuses.append(status); return status
 
     def get_status(self, status_id: str) -> Optional[StatusInstance]:
-        for status in self.statuses:
-            if status.status_id == status_id:
-                return status
-        return None
+        return next((s for s in self.statuses if s.status_id == status_id), None)
 
-    def has_status(self, status_id: str) -> bool:
-        return self.get_status(status_id) is not None
+    def has_status(self, status_id: str) -> bool: return self.get_status(status_id) is not None
 
     def remove_status(self, status_id: str) -> Optional[StatusInstance]:
-        for index, status in enumerate(self.statuses):
-            if status.status_id == status_id:
-                return self.statuses.pop(index)
+        for i, status in enumerate(self.statuses):
+            if status.status_id == status_id: return self.statuses.pop(i)
         return None
 
     def remove_expired_statuses(self) -> None:
-        self.statuses[:] = [status for status in self.statuses if not status.expired]
+        self.statuses[:] = [s for s in self.statuses if not s.expired]
 
 
 class PlayerState:
     def __init__(self, player_id: int, characters: List[CharacterState]):
-        if len(characters) != 3:
-            raise ValueError("七聖召喚ではキャラクターを3体指定してください")
-        self.player_id = player_id
-        self.characters = characters
-        self.active_character_index = 0
-        self.dice = DicePool.default()
-        self.hand = []
-        self.deck = []
-        self.summons: dict[str, SummonInstance] = {}
-        self.combat_statuses: List[StatusInstance] = []
-        self.has_ended_round = False
-        self.has_rerolled = False
-        self.must_switch = False
-        self.shield = 0
+        if len(characters) != 3: raise ValueError("七聖召喚ではキャラクターを3体指定してください")
+        self.player_id = player_id; self.characters = characters; self.active_character_index = 0
+        self.dice = DicePool.default(); self.hand = []; self.deck = []
+        self.summons: dict[str, SummonInstance] = {}; self.combat_statuses: List[StatusInstance] = []
+        self.has_ended_round = False; self.has_rerolled = False; self.must_switch = False; self.shield = 0
 
     @property
-    def active_character(self) -> CharacterState:
-        return self.characters[self.active_character_index]
-
+    def active_character(self): return self.characters[self.active_character_index]
     @property
-    def defeated(self) -> bool:
-        return all(not character.alive for character in self.characters)
-
+    def defeated(self): return all(not c.alive for c in self.characters)
     @property
-    def requires_switch(self) -> bool:
-        return (self.must_switch or not self.active_character.alive) and not self.defeated
+    def requires_switch(self): return (self.must_switch or not self.active_character.alive) and not self.defeated
 
-    def add_shield(self, amount: int) -> int:
-        if amount < 0:
-            raise ValueError("shield amount must not be negative")
-        old_shield = self.shield
-        self.shield = min(2, self.shield + amount)
-        return self.shield - old_shield
-
-    def take_damage(self, amount: int, *, ignore_shield: bool = False) -> int:
-        if amount < 0:
-            raise ValueError("damage amount must not be negative")
-        if ignore_shield or self.shield <= 0:
-            return self.active_character.receive_damage(amount)
-        absorbed = min(self.shield, amount)
-        self.shield -= absorbed
-        return self.active_character.receive_damage(amount - absorbed)
-
-    def add_combat_status(self, status: StatusInstance) -> StatusInstance:
-        if not isinstance(status, StatusInstance):
-            raise TypeError("状態はStatusInstanceである必要があります")
-        self.remove_combat_status(status.status_id)
-        self.combat_statuses.append(status)
-        return status
-
-    def get_combat_status(self, status_id: str) -> Optional[StatusInstance]:
-        for status in self.combat_statuses:
-            if status.status_id == status_id:
-                return status
+    def add_shield(self, amount):
+        if amount < 0: raise ValueError("shield amount must not be negative")
+        old = self.shield; self.shield = min(2, self.shield + amount); return self.shield - old
+    def take_damage(self, amount, *, ignore_shield=False):
+        if amount < 0: raise ValueError("damage amount must not be negative")
+        if ignore_shield or self.shield <= 0: return self.active_character.receive_damage(amount)
+        absorbed = min(self.shield, amount); self.shield -= absorbed; return self.active_character.receive_damage(amount - absorbed)
+    def add_combat_status(self, status):
+        if not isinstance(status, StatusInstance): raise TypeError("状態はStatusInstanceである必要があります")
+        self.remove_combat_status(status.status_id); self.combat_statuses.append(status); return status
+    def get_combat_status(self, status_id): return next((s for s in self.combat_statuses if s.status_id == status_id), None)
+    def has_combat_status(self, status_id): return self.get_combat_status(status_id) is not None
+    def remove_combat_status(self, status_id):
+        for i, status in enumerate(self.combat_statuses):
+            if status.status_id == status_id: return self.combat_statuses.pop(i)
         return None
-
-    def has_combat_status(self, status_id: str) -> bool:
-        return self.get_combat_status(status_id) is not None
-
-    def remove_combat_status(self, status_id: str) -> Optional[StatusInstance]:
-        for index, status in enumerate(self.combat_statuses):
-            if status.status_id == status_id:
-                return self.combat_statuses.pop(index)
-        return None
-
-    def remove_expired_combat_statuses(self) -> None:
-        self.combat_statuses[:] = [
-            status for status in self.combat_statuses if not status.expired
-        ]
-
-    def add_summon(self, summon: SummonInstance) -> SummonInstance:
-        if not isinstance(summon, SummonInstance):
-            raise TypeError("召喚物はSummonInstanceである必要があります")
-        self.summons[summon.summon_id] = summon
-        return summon
-
-    def get_summon(self, summon_id: str) -> Optional[SummonInstance]:
-        summon = self.summons.get(summon_id)
-        return summon if isinstance(summon, SummonInstance) else None
-
-    def has_summon(self, summon_id: str) -> bool:
-        return self.get_summon(summon_id) is not None
-
-    def remove_summon(self, summon_id: str) -> Optional[SummonInstance]:
-        summon = self.summons.get(summon_id)
-        if not isinstance(summon, SummonInstance):
-            return None
-        return self.summons.pop(summon_id)
-
-    def remove_expired_summons(self) -> None:
-        expired_ids = [summon_id for summon_id, summon in self.summons.items() if summon.expired]
-        for summon_id in expired_ids:
-            del self.summons[summon_id]
-
-    def can_switch_to(self, index: int) -> bool:
-        if not 0 <= index < len(self.characters):
-            return False
-        if index == self.active_character_index:
-            return False
-        if not self.characters[index].alive:
-            return False
-        return True
-
-    def switch_character(self, index: int) -> None:
-        if not 0 <= index < len(self.characters):
-            raise ValueError("存在しないキャラクター番号です")
-        if index == self.active_character_index:
-            raise ValueError("すでにアクティブなキャラクターです")
-        if not self.characters[index].alive:
-            raise ValueError("戦闘不能のキャラクターには交代できません")
+    def remove_expired_combat_statuses(self): self.combat_statuses[:] = [s for s in self.combat_statuses if not s.expired]
+    def add_summon(self, summon):
+        if not isinstance(summon, SummonInstance): raise TypeError("召喚物はSummonInstanceである必要があります")
+        self.summons[summon.summon_id] = summon; return summon
+    def get_summon(self, summon_id):
+        summon = self.summons.get(summon_id); return summon if isinstance(summon, SummonInstance) else None
+    def has_summon(self, summon_id): return self.get_summon(summon_id) is not None
+    def remove_summon(self, summon_id): return self.summons.pop(summon_id, None)
+    def remove_expired_summons(self): self.summons = {i:s for i,s in self.summons.items() if not s.expired}
+    def can_switch_to(self, index): return 0 <= index < len(self.characters) and index != self.active_character_index and self.characters[index].alive
+    def switch_character(self, index):
+        if not self.can_switch_to(index): raise ValueError("交代先のキャラクターを選択できません")
         self.active_character_index = index
-
-    def alive_character_indices(self) -> List[int]:
-        return [index for index, character in enumerate(self.characters) if character.alive]
+    def alive_character_indices(self): return [i for i,c in enumerate(self.characters) if c.alive]
 
 
 class GameState:
-    def __init__(self, players: List[PlayerState]):
-        if len(players) != 2:
-            raise ValueError("プレイヤーは2人必要です")
-        self.players = players
-        self.round_number = 1
-        self.phase = GamePhase.ROLL
-        self.current_player = 0
-        self.game_over = False
-        self.winner: Optional[int] = None
-        self.check_game_over()
-
-    def opponent_of(self, player_id: int) -> PlayerState:
-        if player_id not in (0, 1):
-            raise ValueError("player_id must be 0 or 1")
-        return self.players[1 - player_id]
-
-    def check_game_over(self) -> bool:
-        defeated_players = [player.player_id for player in self.players if player.defeated]
-        self.game_over = bool(defeated_players)
-        if len(defeated_players) == 1:
-            self.winner = 1 - defeated_players[0]
-        else:
-            self.winner = None
-        return self.game_over
+    def __init__(self, players):
+        if len(players) != 2: raise ValueError("プレイヤーは2人必要です")
+        self.players = players; self.round_number = 1; self.phase = GamePhase.ROLL; self.current_player = 0; self.game_over = False; self.winner = None; self.check_game_over()
+    def opponent_of(self, player_id):
+        if player_id not in (0,1): raise ValueError("player_id must be 0 or 1")
+        return self.players[1-player_id]
+    def check_game_over(self):
+        defeated = [p.player_id for p in self.players if p.defeated]; self.game_over = bool(defeated); self.winner = 1-defeated[0] if len(defeated)==1 else None; return self.game_over
