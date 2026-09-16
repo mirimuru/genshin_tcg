@@ -19,6 +19,16 @@ class DamageEvent(GameEvent):
 
 
 @dataclass
+class EnergyEvent(GameEvent):
+    """キャラクターのEnergy変更を表すイベント。"""
+    player_id: int
+    character_index: int
+    amount: int
+    reason: str
+    resolved: bool = False
+
+
+@dataclass
 class RoundEndEvent(GameEvent):
     player_id: int
 
