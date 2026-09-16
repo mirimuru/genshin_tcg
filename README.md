@@ -16,6 +16,9 @@
 | キャラクターDefinition / Registry | 実装済み |
 | 具体的キャラクターDefinition | ディルックを実装 |
 | Character Effect API | 実装済み |
+| キャラクター固有ダメージ変更フック | 実装済み |
+| キャラクター固有コスト定義 | 実装済み |
+| ディルック固有効果 | 実装済み（スキル3回目強化・元素爆発・炎元素付与） |
 | HP・エネルギー管理 | 基本実装 |
 | ダメージ処理 | 実装済み |
 | キャラクター交代 | 実装済み |
@@ -45,7 +48,7 @@
 - `Game.add_combat_status(player_id, status)`
 - `Game.add_summon(player_id, summon)`
 
-これらは既存の `StatusDefinition` / `StatusInstance` / `SummonDefinition` / `SummonInstance` と `_emit_event()` のイベント配送経路を利用します。
+さらにCharacter Statusには、ダメージ確定前にダメージ量・元素を変更できる `modify_damage()` フックを追加しています。これにより元素付与などをキャラクター固有Definition側から共通のダメージ処理へ接続できます。
 
 ```text
 CharacterDefinition
@@ -55,10 +58,13 @@ CharacterDefinition
   ├─ elemental_skill()
   └─ elemental_burst()
        │
-       └─ Game Effect API
-            ├─ add_character_status()
-            ├─ add_combat_status()
-            └─ add_summon()
+       ├─ Character Effect API
+       │    ├─ add_character_status()
+       │    ├─ add_combat_status()
+       │    └─ add_summon()
+       │
+       └─ Character Status
+            └─ modify_damage()
 
 CharacterState
   ├─ definition
@@ -73,7 +79,18 @@ content/characters/
   └─ diluc.py
 ```
 
-具体的なキャラクターは `content/characters/` に分離します。現在はDefinition方式の実装例としてディルックを追加しています。今後は各キャラクターの実際の七聖召喚上の固有効果をこの方式で追加します。
+### ディルック
+
+現在のディルックDefinitionは、2026年時点の七聖召喚カード仕様を基準に以下を実装しています。
+
+- 通常攻撃: 2物理ダメージ、炎1 + 任意2
+- 元素スキル: 3炎ダメージ、ラウンド中3回目のみ+2
+- 元素爆発: 8炎ダメージ、Energy 3、炎4ダイス
+- 元素爆発後: 2ラウンドの炎元素付与
+- 炎元素付与中は物理ダメージを炎ダメージへ変換
+- 元素スキル使用回数はCharacter Statusのデータとして保持し、ラウンド終了時にリセット
+
+これは今後追加するキャラクターでも利用できるよう、固有ロジックを `content/characters/` に分離しています。
 
 ## 状態効果のアーキテクチャ
 
@@ -83,7 +100,7 @@ content/characters/
 - **Combat Status**: プレイヤー側に保持され、交代しても維持される状態
 - **Summon**: プレイヤー側に保持され、ラウンド終了などのイベントで処理される召喚物
 
-各状態は `Definition` と `Instance` に分離されています。
+各状態は `Definition` と `Instance` に分離されています。`StatusInstance` は追加の状態データを `data` として保持でき、キャラクター固有の使用回数やラウンド内カウンタにも利用できます。
 
 ## イベントシステム
 
@@ -129,7 +146,16 @@ content/characters/
 python -m pytest
 ```
 
-キャラクターEffect APIについて、Character Status / Combat Status / Summonの追加、イベントによる自動期限切れ、CharacterDefinitionからの利用をテストしています。既存の166テストを維持したうえで、新規Effect APIテストを追加しています。
+既存のテストに加えて、ディルックの実際のTCG効果について以下をテストしています。
+
+- スキル3回目のダメージ増加
+- ラウンド終了によるスキル使用回数リセット
+- 元素爆発の8ダメージとEnergy 3
+- 炎元素付与による物理→炎変換
+- 炎元素付与の2ラウンド持続
+- ディルック固有のダイスコスト
+
+テストコード上のpytest警告も整理し、警告なしで実行できる状態を目指しています。今回の変更後の実測テスト結果はローカル環境で確認予定です。
 
 ## ディレクトリ構成
 
@@ -156,6 +182,7 @@ players/
   cpu.py
 tests/
   test_character_definitions.py
+  test_diluc_effects.py
   test_effect_api.py
   # その他各ルール・状態・反応・イベントのテスト
 ```
