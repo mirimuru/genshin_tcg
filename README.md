@@ -110,7 +110,7 @@ history = game.run(players, max_actions=1000)
 python -m pytest
 ```
 
-現在 **157 tests** を用意しています。エネルギー変更イベントのゲーム処理への接続、およびカード使用時のダイス二重支払い修正まで含めたテストスイートです。
+現在 **157 tests / 157 passed** を確認済みです。エネルギー変更イベントのゲーム処理への接続、およびカード使用時のダイス二重支払い修正まで含めたテストスイートです。
 
 GitHub Actionsでも `main` へのpushおよび `main` 向けPull Requestでpytestを実行します。
 
