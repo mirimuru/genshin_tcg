@@ -5,7 +5,7 @@ import random
 from engine.actions import Action, ActionType
 from engine.cards import CardRegistry
 from engine.dice import DicePool, DiceType
-from engine.effects import create_burning_flame, create_catalyzing_field, create_crystallize_shield, create_dendro_core
+from engine.effects import create_bloom_core_generation, create_burning_flame, create_catalyzing_field, create_crystallize_shield
 from engine.elemental_reactions import ElementalReaction, ReactionResolver
 from engine.events import DamageEvent, EffectContext, GameEvent, RoundEndEvent
 from engine.state import Element, GamePhase
@@ -62,11 +62,7 @@ class Game:
         if reaction is ElementalReaction.FROZEN and not self._is_frozen(target_character):
             target_character.add_status(self._create_frozen_status())
         if reaction is ElementalReaction.BLOOM:
-            existing = attacker.get_combat_status("dendro_core")
-            if existing is None:
-                attacker.add_combat_status(create_dendro_core(1))
-            else:
-                existing.usages = min(2, (existing.usages or 0) + 1)
+            attacker.add_combat_status(create_bloom_core_generation())
         if reaction is ElementalReaction.OVERLOADED and not target.defeated:
             target.must_switch = True
         if reaction is ElementalReaction.BURNING:
