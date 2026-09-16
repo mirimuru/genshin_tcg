@@ -1,9 +1,13 @@
-name: Quicken TDD
+name: Tests
 
 on:
   push:
     branches:
+      - main
       - feature/quicken-catalyzing-field
+  pull_request:
+    branches:
+      - main
 
 jobs:
   test:
