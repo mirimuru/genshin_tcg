@@ -72,6 +72,25 @@ class CrystallizeShield(StatusDefinition):
         instance.consume()
 
 
+class BurningFlameGeneration(StatusDefinition):
+    status_id = "burning_flame_generation"
+    name = "燃焼の炎生成"
+    max_usages = 1
+
+    def on_event(self, instance, event, game, context):
+        if not isinstance(event, DamageEvent) or event.resolved:
+            return
+        if event.attacker_id != context.owner_id or event.reaction is not ElementalReaction.BURNING:
+            return
+        player = game.state.players[context.owner_id]
+        existing = player.get_summon("burning_flame")
+        if existing is None:
+            player.add_summon(create_burning_flame(1))
+        else:
+            existing.usages = min(2, (existing.usages or 0) + 1)
+        instance.consume()
+
+
 class BurningFlame(SummonDefinition):
     summon_id = "burning_flame"
     name = "燃焼の炎"
@@ -88,7 +107,7 @@ class BurningFlame(SummonDefinition):
             game.deal_damage(context.owner_id, 1 - context.owner_id, 1, Element.PYRO)
 
 
-DEFAULT_STATUS_REGISTRY = StatusRegistry((CatalyzingField, DendroCore, BloomCoreGeneration, CrystallizeShield))
+DEFAULT_STATUS_REGISTRY = StatusRegistry((CatalyzingField, DendroCore, BloomCoreGeneration, CrystallizeShield, BurningFlameGeneration))
 DEFAULT_SUMMON_REGISTRY = SummonRegistry((BurningFlame,))
 
 
@@ -106,6 +125,10 @@ def create_bloom_core_generation(usages: int = 1) -> StatusInstance:
 
 def create_crystallize_shield(usages: int = 1) -> StatusInstance:
     return DEFAULT_STATUS_REGISTRY.create("crystallize_shield", usages=usages)
+
+
+def create_burning_flame_generation(usages: int = 1) -> StatusInstance:
+    return DEFAULT_STATUS_REGISTRY.create("burning_flame_generation", usages=usages)
 
 
 def create_burning_flame(usages: int = 1) -> SummonInstance:
