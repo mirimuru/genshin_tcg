@@ -1,4 +1,5 @@
 from engine.events import RoundEndEvent
+from engine.state import Element
 from engine.statuses import StatusDefinition, StatusInstance, StatusRegistry
 from engine.summons import SummonDefinition, SummonInstance, SummonRegistry
 
@@ -28,7 +29,7 @@ class BurningFlame(SummonDefinition):
         for _ in range(uses):
             if game.state.game_over:
                 break
-            game.deal_damage(context.owner_id, 1 - context.owner_id, 1, game.state.elements.PYRO if hasattr(game.state, "elements") else __import__("engine.state", fromlist=["Element"]).Element.PYRO)
+            game.deal_damage(context.owner_id, 1 - context.owner_id, 1, Element.PYRO)
 
 
 DEFAULT_STATUS_REGISTRY = StatusRegistry((CatalyzingField, DendroCore))
