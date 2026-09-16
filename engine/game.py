@@ -7,7 +7,17 @@ from engine.cards import CardRegistry
 from engine.dice import DicePool, DiceType
 from engine.effects import create_bloom_core_generation, create_burning_flame_generation, create_catalyzing_field, create_crystallize_shield
 from engine.elemental_reactions import ElementalReaction, ReactionResolver
-from engine.events import DamageEvent, EffectContext, EnergyEvent, GameEvent, RoundEndEvent
+from engine.events import (
+    CharacterSwitchEvent,
+    DamageEvent,
+    EffectContext,
+    ElementalBurstEvent,
+    ElementalSkillEvent,
+    EnergyEvent,
+    GameEvent,
+    NormalAttackEvent,
+    RoundEndEvent,
+)
 from engine.state import Element, GamePhase
 
 
@@ -162,28 +172,42 @@ class Game:
                 character.elemental_aura = element
 
     def normal_attack(self, player_id: int):
+        character_index = self.state.players[player_id].active_character_index
         character = self.state.players[player_id].active_character
         if self._is_frozen(character):
             raise ValueError("凍結中のキャラクターは攻撃できません")
+        event = NormalAttackEvent(player_id, character_index)
+        self._emit_event(event)
         character.definition.normal_attack(self, player_id)
-        self.change_energy(player_id, self.state.players[player_id].active_character_index, 1, "normal_attack")
+        event.resolved = True
+        self._emit_event(event)
+        self.change_energy(player_id, character_index, 1, "normal_attack")
 
     def elemental_skill(self, player_id: int):
+        character_index = self.state.players[player_id].active_character_index
         character = self.state.players[player_id].active_character
         if self._is_frozen(character):
             raise ValueError("凍結中のキャラクターは元素スキルを使用できません")
+        event = ElementalSkillEvent(player_id, character_index)
+        self._emit_event(event)
         character.definition.elemental_skill(self, player_id)
-        self.change_energy(player_id, self.state.players[player_id].active_character_index, 1, "elemental_skill")
+        event.resolved = True
+        self._emit_event(event)
+        self.change_energy(player_id, character_index, 1, "elemental_skill")
 
     def elemental_burst(self, player_id: int):
+        character_index = self.state.players[player_id].active_character_index
         character = self.state.players[player_id].active_character
         if self._is_frozen(character):
             raise ValueError("凍結中のキャラクターは元素爆発を使用できません")
         if character.energy < character.max_energy:
             raise ValueError("元素爆発に必要なEnergyが不足しています")
-        character_index = self.state.players[player_id].active_character_index
         self.change_energy(player_id, character_index, -character.max_energy, "elemental_burst")
+        event = ElementalBurstEvent(player_id, character_index)
+        self._emit_event(event)
         character.definition.elemental_burst(self, player_id)
+        event.resolved = True
+        self._emit_event(event)
 
     def get_action_cost(self, action: Action) -> dict[DiceType, int]:
         if action.action_type is ActionType.SWITCH_CHARACTER:
@@ -377,7 +401,12 @@ class Game:
         player = self.state.players[action.player_id]
         if not isinstance(action.target, int) or not player.can_switch_to(action.target):
             raise ValueError("交代先が不正です")
+        from_index = player.active_character_index
+        event = CharacterSwitchEvent(action.player_id, from_index, action.target)
+        self._emit_event(event)
         player.switch_character(action.target)
+        event.resolved = True
+        self._emit_event(event)
         if player.must_switch:
             player.must_switch = False
 
