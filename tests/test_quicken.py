@@ -29,7 +29,9 @@ def test_quicken_creates_two_usage_catalyzing_field():
 
     game.deal_damage(0, 1, 2, Element.DENDRO)
 
-    assert game.state.players[0].catalyzing_field == 2
+    status = game.state.players[0].get_combat_status("catalyzing_field")
+    assert status is not None
+    assert status.usages == 2
     assert target.hp == 7
     assert target.elemental_aura is None
 
@@ -40,8 +42,6 @@ def test_catalyzing_field_boosts_next_two_dendro_or_electro_damage_instances():
     target = target_player.active_character
     target.elemental_aura = Element.ELECTRO
 
-    # ゲーム終了条件は3キャラクター全員の戦闘不能なので、
-    # 最後の攻撃でこのキャラクターを倒したときにゲーム終了になるようにする。
     target_player.characters[1].receive_damage(999)
     target_player.characters[2].receive_damage(999)
 
@@ -49,11 +49,11 @@ def test_catalyzing_field_boosts_next_two_dendro_or_electro_damage_instances():
 
     game.deal_damage(0, 1, 2, Element.ELECTRO)
     assert target.hp == 4
-    assert game.state.players[0].catalyzing_field == 1
+    assert game.state.players[0].get_combat_status("catalyzing_field").usages == 1
 
     game.deal_damage(0, 1, 2, Element.DENDRO)
     assert target.hp == 1
-    assert game.state.players[0].catalyzing_field == 0
+    assert game.state.players[0].get_combat_status("catalyzing_field") is None
 
     game.deal_damage(0, 1, 2, Element.ELECTRO)
     assert target.hp == 0
@@ -68,7 +68,7 @@ def test_catalyzing_field_is_not_consumed_by_other_elements():
 
     game.deal_damage(0, 1, 2, Element.PYRO)
 
-    assert game.state.players[0].catalyzing_field == 2
+    assert game.state.players[0].get_combat_status("catalyzing_field").usages == 2
 
 
 def test_catalyzing_field_follows_active_character_when_switching():
@@ -78,8 +78,8 @@ def test_catalyzing_field_follows_active_character_when_switching():
     game.deal_damage(0, 1, 2, Element.DENDRO)
 
     game.execute_action(Action(0, ActionType.SWITCH_CHARACTER, target=1))
-    assert game.state.players[0].catalyzing_field == 2
+    assert game.state.players[0].get_combat_status("catalyzing_field").usages == 2
 
     game.deal_damage(0, 1, 2, Element.ELECTRO)
     assert target.hp == 4
-    assert game.state.players[0].catalyzing_field == 1
+    assert game.state.players[0].get_combat_status("catalyzing_field").usages == 1
