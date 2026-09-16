@@ -33,7 +33,7 @@ def test_crystallize_shield_reduces_incoming_damage_and_is_consumed():
     target.elemental_aura = Element.PYRO
     game.deal_damage(0, 1, 2, Element.GEO)
 
-    game.deal_damage(0, 1, 3, Element.PYRO)
+    game.deal_damage(0, 1, 1, Element.PYRO)
 
     assert target.hp == 6
     assert target.shield == 1
