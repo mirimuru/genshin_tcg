@@ -95,13 +95,11 @@ class PlayerState:
         self.dice = DicePool.default()
         self.hand = []
         self.deck = []
-        self.summons = {}
+        self.summons: dict[str, SummonInstance] = {}
         self.combat_statuses: List[StatusInstance] = []
         self.has_ended_round = False
         self.has_rerolled = False
         self.must_switch = False
-        self.dendro_core = 0
-        self.catalyzing_field = 0
         self.shield = 0
 
     @property
@@ -179,11 +177,7 @@ class PlayerState:
         return self.summons.pop(summon_id)
 
     def remove_expired_summons(self) -> None:
-        expired_ids = [
-            summon_id
-            for summon_id, summon in self.summons.items()
-            if isinstance(summon, SummonInstance) and summon.expired
-        ]
+        expired_ids = [summon_id for summon_id, summon in self.summons.items() if summon.expired]
         for summon_id in expired_ids:
             del self.summons[summon_id]
 
