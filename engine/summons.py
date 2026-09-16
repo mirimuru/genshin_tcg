@@ -60,7 +60,7 @@ class SummonInstance:
 class SummonRegistry:
     """召喚物IDから召喚物定義を解決するレジストリ。"""
 
-    def __init__(self, definitions: Sequence[type[SummonDefinition] | SummonInstance | SummonDefinition] = ()):
+    def __init__(self, definitions: Sequence[type[SummonDefinition] | SummonDefinition] = ()):
         self._summons: dict[str, SummonDefinition] = {}
         for definition in definitions:
             self.register(definition)
