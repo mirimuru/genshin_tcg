@@ -3,6 +3,7 @@ from typing import List, Optional
 
 from engine.dice import DicePool
 from engine.statuses import StatusInstance
+from engine.summons import SummonInstance
 
 
 class Element(Enum):
@@ -157,6 +158,34 @@ class PlayerState:
         self.combat_statuses[:] = [
             status for status in self.combat_statuses if not status.expired
         ]
+
+    def add_summon(self, summon: SummonInstance) -> SummonInstance:
+        if not isinstance(summon, SummonInstance):
+            raise TypeError("召喚物はSummonInstanceである必要があります")
+        self.summons[summon.summon_id] = summon
+        return summon
+
+    def get_summon(self, summon_id: str) -> Optional[SummonInstance]:
+        summon = self.summons.get(summon_id)
+        return summon if isinstance(summon, SummonInstance) else None
+
+    def has_summon(self, summon_id: str) -> bool:
+        return self.get_summon(summon_id) is not None
+
+    def remove_summon(self, summon_id: str) -> Optional[SummonInstance]:
+        summon = self.summons.get(summon_id)
+        if not isinstance(summon, SummonInstance):
+            return None
+        return self.summons.pop(summon_id)
+
+    def remove_expired_summons(self) -> None:
+        expired_ids = [
+            summon_id
+            for summon_id, summon in self.summons.items()
+            if isinstance(summon, SummonInstance) and summon.expired
+        ]
+        for summon_id in expired_ids:
+            del self.summons[summon_id]
 
     def can_switch_to(self, index: int) -> bool:
         if not 0 <= index < len(self.characters):
