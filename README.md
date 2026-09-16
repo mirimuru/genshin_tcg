@@ -14,12 +14,13 @@
 |---|---|
 | キャラクター・プレイヤー状態管理 | 実装済み |
 | キャラクターDefinition / Registry | 実装済み |
-| 具体的キャラクターDefinition | ディルック・香菱を実装 |
+| 具体的キャラクターDefinition | ディルック・香菱・ガイアを実装 |
 | Character Effect API | 実装済み |
 | キャラクター固有ダメージ変更フック | 実装済み |
 | キャラクター固有コスト定義 | 実装済み |
 | ディルック固有効果 | 実装済み（スキル3回目強化・元素爆発・炎元素付与） |
 | 香菱固有効果 | 実装済み（グゥオパァー・旋火輪をイベント駆動で生成） |
+| ガイア固有効果 | 実装済み（元素爆発・霜の舞を交代イベントで処理） |
 | HP・エネルギー管理 | 基本実装 |
 | ダメージ処理 | 実装済み |
 | キャラクター交代 | 実装済み |
@@ -71,6 +72,7 @@ CharacterRegistry
 
 content/characters/
   ├─ diluc.py
+  ├─ kaeya.py
   └─ xiangling.py
 ```
 
@@ -90,6 +92,12 @@ content/characters/
 香菱はイベント駆動型キャラクターのリファレンス実装として追加しています。カードデータでは、通常攻撃が2物理ダメージ、元素スキル「グゥオパァー出撃」がグゥオパァーを2回使用で生成、元素爆発「旋火輪」が3炎ダメージと旋火輪を2回使用で生成します。
 
 実装では `ElementalSkillEvent` / `ElementalBurstEvent` の解決イベントを `Character Status` が購読し、対応する `Summon` を生成します。グゥオパァーは `RoundEndEvent`、旋火輪は後続の `ElementalSkillEvent` に反応してダメージを与えます。これにより、キャラクター固有処理を `Game` のキャラクターID分岐へ追加せずに実装できます。
+
+### ガイア
+
+ガイアは `CharacterSwitchEvent` を利用するイベント駆動型キャラクターのリファレンスとして追加しています。公式カード仕様では、元素爆発「凛冽なる輪舞」は1氷ダメージを与え、「霜の舞」を3回使用で生成し、自分がキャラクターを交代した後に2氷ダメージを与えます。citeturn0search1turn0search4
+
+実装では元素爆発の解決イベントをCharacter Statusが購読して `kaeya_icicle` Combat Statusを生成し、そのCombat Statusが自分の `CharacterSwitchEvent` の解決時に2氷ダメージを与えて使用回数を1消費します。相手側の交代では発動しません。
 
 ## 状態効果のアーキテクチャ
 
@@ -151,7 +159,7 @@ content/characters/
 python -m pytest
 ```
 
-現在のローカルテスト結果: **190 passed**
+Kaeya追加前の直近確認済み結果: **190 passed**。ガイア追加後の回帰テストは現在確認中です。
 
 イベント駆動部分では、以下をテストしています。
 
@@ -161,6 +169,7 @@ python -m pytest
 - DamageEventの変更と実ダメージへの反映
 - EnergyEventの上限・下限適用後の実変化量
 - 香菱のグゥオパァー・旋火輪のイベント駆動生成と消費
+- ガイアの元素爆発・霜の舞の交代イベント処理
 - ディルックの既存固有効果
 
 GitHub Actionsでもpytestを実行しています。
@@ -185,6 +194,7 @@ engine/
 content/
   characters/
     diluc.py          # ディルックDefinition
+    kaeya.py          # ガイアDefinition・固有Combat Status
     xiangling.py      # 香菱Definition・固有Summon
 players/
   human.py
@@ -195,6 +205,7 @@ tests/
   test_effect_api.py
   test_energy.py
   test_events.py
+  test_kaeya.py
   test_xiangling.py
   # その他各ルール・状態・反応・イベントのテスト
 ```
