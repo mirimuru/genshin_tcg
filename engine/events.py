@@ -15,6 +15,7 @@ class DamageEvent(GameEvent):
     amount: int
     element: Element
     reaction: ElementalReaction | None = None
+    resolved: bool = False
 
 
 @dataclass
