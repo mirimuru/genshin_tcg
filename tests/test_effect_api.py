@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from engine.characters import CharacterDefinition
 from engine.events import GameEvent
 from engine.game import Game
 from engine.state import CharacterState, Element, GameState, PlayerState
@@ -106,3 +107,29 @@ def test_effect_added_through_api_receives_events_and_expires():
     game._emit_event(TestEvent(1))
 
     assert not game.state.players[0].characters[0].has_status("event_status")
+
+
+class EffectfulCharacter(CharacterDefinition):
+    character_id = "effectful_test"
+    name = "効果テスト"
+    element = Element.PYRO
+
+    def elemental_skill(self, game, player_id: int) -> None:
+        game.add_combat_status(player_id, StatusInstance(TestCombatStatus))
+        game.deal_damage(player_id, 1 - player_id, 3, self.element)
+
+
+def make_game_with_definition(definition):
+    players = [
+        PlayerState(0, [definition.create_state(), CharacterState("P0-1", Element.PYRO), CharacterState("P0-2", Element.PYRO)]),
+        PlayerState(1, [CharacterState(f"P1-{i}", Element.HYDRO) for i in range(3)]),
+    ]
+    return Game(GameState(players))
+
+
+def test_character_definition_can_use_effect_api():
+    game = make_game_with_definition(EffectfulCharacter())
+
+    game.elemental_skill(0)
+
+    assert game.state.players[0].has_combat_status("test_combat_status")
