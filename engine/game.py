@@ -344,3 +344,124 @@ class Game:
         if not self.state.game_over:
             raise RuntimeError("max_steps reached before game over")
         return steps
+
+    def _get_reroll_actions(self, player_id: int) -> list[Action]:
+        dice = self.state.players[player_id].dice.as_list()
+        return [Action(player_id, ActionType.REROLL_DICE,
+                       target=tuple(dice[index] for index in range(len(dice)) if mask & (1 << index)))
+                for mask in range(1 << len(dice))]
+
+    def _execute_reroll(self, action: Action) -> None:
+        player = self.state.players[action.player_id]
+        if player.has_rerolled:
+            raise ValueError("このラウンドではすでにリロール済みです")
+        if not isinstance(action.target, tuple):
+            raise ValueError("リロール対象のダイスがタプルで指定されていません")
+        if any(not isinstance(dice_type, DiceType) or dice_type is DiceType.ANY for dice_type in action.target):
+            raise ValueError("リロール対象が不正です")
+        player.dice.reroll(Counter(action.target), self.rng)
+        player.has_rerolled = True
+        opponent_id = 1 - action.player_id
+        opponent = self.state.players[opponent_id]
+        if opponent.has_rerolled:
+            self.state.phase = GamePhase.ACTION
+            self.state.current_player = 0
+        else:
+            self.state.current_player = opponent_id
+
+    def _start_roll_phase(self) -> None:
+        self.state.phase = GamePhase.ROLL
+        self.state.current_player = 0
+        for player in self.state.players:
+            player.dice = DicePool.roll(self.rng)
+            player.has_rerolled = False
+
+    def _execute_switch(self, action: Action) -> None:
+        if action.target is None:
+            raise ValueError("交代先が指定されていません")
+        player = self.state.players[action.player_id]
+        if not isinstance(action.target, int) or not player.can_switch_to(action.target):
+            raise ValueError("交代先が不正です")
+        player.switch_character(action.target)
+        if player.must_switch:
+            player.must_switch = False
+
+    def _require_and_pay_dice(self, action: Action) -> None:
+        cost = self.get_action_cost(action)
+        player = self.state.players[action.player_id]
+        if not player.dice.can_pay(cost):
+            raise ValueError("ダイスが不足しています")
+        player.dice.pay(cost)
+
+    def _execute_tuning(self, action: Action) -> None:
+        player = self.state.players[action.player_id]
+        if not isinstance(action.target, DiceType) or action.target is DiceType.ANY:
+            raise ValueError("変換先のダイス種別が不正です")
+        if action.target not in DicePool.ROLLABLE_DICE_TYPES:
+            raise ValueError("変換先に選択できないダイスです")
+        active_dice_type = self._element_to_dice_type(player.active_character.element)
+        if action.target is active_dice_type or action.target is DiceType.OMNI:
+            raise ValueError("変換先が不正です")
+        if player.dice.count(action.target) <= 0:
+            raise ValueError("変換元のダイスが不足しています")
+        player.dice.harmonize(action.target, active_dice_type)
+
+    def _end_round(self, player_id: int) -> None:
+        player = self.state.players[player_id]
+        player.has_ended_round = True
+        opponent = self.state.players[1 - player_id]
+        if opponent.has_ended_round:
+            self._resolve_end_of_round_effects()
+            if not self.state.game_over:
+                self._start_next_round()
+        else:
+            self.state.current_player = 1 - player_id
+
+    def _resolve_end_of_round_effects(self) -> None:
+        for player_id, player in enumerate(self.state.players):
+            burning = player.get_summon("burning_flame")
+            if burning is None or not burning.usages:
+                continue
+            uses = burning.usages
+            player.remove_summon("burning_flame")
+            for _ in range(uses):
+                if self.state.game_over:
+                    break
+                self.deal_damage(player_id, 1 - player_id, 1, Element.PYRO)
+
+        for player in self.state.players:
+            for character in player.characters:
+                character.remove_status("frozen")
+            player.remove_expired_combat_statuses()
+            player.remove_expired_summons()
+
+    def _start_next_round(self) -> None:
+        self.state.round_number += 1
+        self.state.phase = GamePhase.ROLL
+        self.state.current_player = 0
+        for player in self.state.players:
+            player.has_ended_round = False
+            player.has_rerolled = False
+            player.dice = DicePool.roll(self.rng)
+
+    def _advance_turn(self, player_id: int) -> None:
+        self.state.current_player = 1 - player_id
+
+    @staticmethod
+    def _element_to_dice_type(element: Element) -> DiceType:
+        mapping = {
+            Element.PYRO: DiceType.PYRO,
+            Element.HYDRO: DiceType.HYDRO,
+            Element.ANEMO: DiceType.ANEMO,
+            Element.ELECTRO: DiceType.ELECTRO,
+            Element.DENDRO: DiceType.DENDRO,
+            Element.CRYO: DiceType.CRYO,
+            Element.GEO: DiceType.GEO,
+        }
+        if element not in mapping:
+            raise ValueError("物理属性のキャラクターには専用ダイスがありません")
+        return mapping[element]
+
+
+def attacker_character_name(player) -> str:
+    return player.active_character.name
