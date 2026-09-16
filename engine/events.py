@@ -9,6 +9,38 @@ class GameEvent:
 
 
 @dataclass
+class CharacterActionEvent(GameEvent):
+    """キャラクターアクションの開始・解決を表す基底イベント。"""
+    player_id: int
+    character_index: int
+    resolved: bool = False
+
+
+@dataclass
+class NormalAttackEvent(CharacterActionEvent):
+    """通常攻撃の開始・解決イベント。"""
+
+
+@dataclass
+class ElementalSkillEvent(CharacterActionEvent):
+    """元素スキルの開始・解決イベント。"""
+
+
+@dataclass
+class ElementalBurstEvent(CharacterActionEvent):
+    """元素爆発の開始・解決イベント。"""
+
+
+@dataclass
+class CharacterSwitchEvent(GameEvent):
+    """キャラクター切り替えの開始・解決イベント。"""
+    player_id: int
+    from_index: int
+    to_index: int
+    resolved: bool = False
+
+
+@dataclass
 class DamageEvent(GameEvent):
     attacker_id: int
     target_id: int
