@@ -5,7 +5,7 @@ import random
 from engine.actions import Action, ActionType
 from engine.cards import CardRegistry
 from engine.dice import DicePool, DiceType
-from engine.effects import create_burning_flame, create_catalyzing_field, create_dendro_core
+from engine.effects import create_burning_flame, create_dendro_core
 from engine.elemental_reactions import ElementalReaction, ReactionResolver
 from engine.events import DamageEvent, EffectContext, GameEvent, RoundEndEvent
 from engine.state import Element, GamePhase
@@ -59,9 +59,6 @@ class Game:
             target_character.remove_status("frozen")
             frozen_break_bonus = 2
 
-        catalyzing_field = attacker.get_combat_status("catalyzing_field")
-        had_catalyzing_field = catalyzing_field is not None and catalyzing_field.usages > 0
-        catalyzing_field_boost = 0
         reaction = None
         reaction_bonus = 0
         reacted_element = target_character.elemental_aura
@@ -77,23 +74,8 @@ class Game:
         elif element is not Element.PHYSICAL:
             target_character.elemental_aura = element
 
-        if element in {Element.DENDRO, Element.ELECTRO} and catalyzing_field is not None:
-            if catalyzing_field.usages and catalyzing_field.usages > 0:
-                catalyzing_field.consume()
-                if reaction is not ElementalReaction.QUICKEN:
-                    catalyzing_field_boost = 1
-                attacker.remove_expired_combat_statuses()
-
         if reaction is ElementalReaction.FROZEN and not self._is_frozen(target_character):
             target_character.add_status(self._create_frozen_status())
-
-        dendro_core = attacker.get_combat_status("dendro_core")
-        dendro_core_boost = 0
-        if element in {Element.PYRO, Element.ELECTRO} and dendro_core is not None:
-            if dendro_core.usages and dendro_core.usages > 0:
-                dendro_core.consume()
-                dendro_core_boost = 2
-                attacker.remove_expired_combat_statuses()
 
         if reaction is ElementalReaction.BLOOM:
             existing = attacker.get_combat_status("dendro_core")
@@ -112,10 +94,12 @@ class Game:
             else:
                 existing.usages = min(2, (existing.usages or 0) + 1)
 
-        if reaction is ElementalReaction.QUICKEN and not had_catalyzing_field:
+        if reaction is ElementalReaction.QUICKEN and attacker.get_combat_status("catalyzing_field") is None:
+            from engine.effects import create_catalyzing_field
+
             attacker.add_combat_status(create_catalyzing_field(2))
 
-        total_damage = amount + reaction_bonus + catalyzing_field_boost + dendro_core_boost + frozen_break_bonus
+        total_damage = amount + reaction_bonus + frozen_break_bonus
         damage_event = DamageEvent(attacker_id, target_id, total_damage, element, reaction)
         self._emit_event(damage_event)
         if reaction is not None:
@@ -350,129 +334,13 @@ class Game:
         self.state.check_game_over()
         return action
 
-    def run(self, players: Sequence, max_actions: int = 1000) -> list[Action]:
+    def run(self, players: Sequence, max_steps: int = 1000) -> int:
         if len(players) != 2:
             raise ValueError("players must contain exactly two players")
-        if max_actions < 1:
-            raise ValueError("max_actions must be positive")
-        actions = []
-        while not self.state.game_over and len(actions) < max_actions:
-            actions.append(self.step(players))
-        return actions
-
-    def _get_reroll_actions(self, player_id: int) -> list[Action]:
-        dice = self.state.players[player_id].dice.as_list()
-        return [Action(player_id, ActionType.REROLL_DICE,
-                       target=tuple(dice[index] for index in range(len(dice)) if mask & (1 << index)))
-                for mask in range(1 << len(dice))]
-
-    def _execute_reroll(self, action: Action) -> None:
-        player = self.state.players[action.player_id]
-        if player.has_rerolled:
-            raise ValueError("このラウンドではすでにリロール済みです")
-        if not isinstance(action.target, tuple):
-            raise ValueError("リロール対象のダイスがタプルで指定されていません")
-        if any(not isinstance(dice_type, DiceType) or dice_type is DiceType.ANY for dice_type in action.target):
-            raise ValueError("リロール対象が不正です")
-        player.dice.reroll(Counter(action.target), self.rng)
-        player.has_rerolled = True
-        opponent_id = 1 - action.player_id
-        opponent = self.state.players[opponent_id]
-        if opponent.has_rerolled:
-            self.state.phase = GamePhase.ACTION
-            self.state.current_player = 0
-        else:
-            self.state.current_player = opponent_id
-
-    def _start_roll_phase(self) -> None:
-        self.state.phase = GamePhase.ROLL
-        self.state.current_player = 0
-        for player in self.state.players:
-            player.dice = DicePool.roll(self.rng)
-            player.has_rerolled = False
-
-    def _execute_switch(self, action: Action) -> None:
-        if action.target is None:
-            raise ValueError("交代先が指定されていません")
-        player = self.state.players[action.player_id]
-        if not isinstance(action.target, int) or not player.can_switch_to(action.target):
-            raise ValueError("交代先が不正です")
-        player.switch_character(action.target)
-        if player.must_switch:
-            player.must_switch = False
-
-    def _require_and_pay_dice(self, action: Action) -> None:
-        cost = self.get_action_cost(action)
-        player = self.state.players[action.player_id]
-        if not player.dice.can_pay(cost):
-            raise ValueError("ダイスが不足しています")
-        player.dice.pay(cost)
-
-    def _execute_tuning(self, action: Action) -> None:
-        player = self.state.players[action.player_id]
-        if not isinstance(action.target, DiceType) or action.target is DiceType.ANY:
-            raise ValueError("変換先のダイス種別が不正です")
-        if action.target not in DicePool.ROLLABLE_DICE_TYPES:
-            raise ValueError("変換先に選択できないダイスです")
-        active_dice_type = self._element_to_dice_type(player.active_character.element)
-        if action.target is active_dice_type or action.target is DiceType.OMNI:
-            raise ValueError("変換先が不正です")
-        if player.dice.count(action.target) <= 0:
-            raise ValueError("変換元のダイスが不足しています")
-        player.dice.harmonize(action.target, active_dice_type)
-
-    def _end_round(self, player_id: int) -> None:
-        player = self.state.players[player_id]
-        player.has_ended_round = True
-        opponent = self.state.players[1 - player_id]
-        if opponent.has_ended_round:
-            self._resolve_end_of_round_effects()
-            if not self.state.game_over:
-                self._start_next_round()
-        else:
-            self.state.current_player = 1 - player_id
-
-    def _resolve_end_of_round_effects(self) -> None:
-        for player_id in (0, 1):
-            self._emit_event(RoundEndEvent(player_id))
-
-        for player in self.state.players:
-            for character in player.characters:
-                character.remove_status("frozen")
-            player.remove_expired_combat_statuses()
-            player.remove_expired_summons()
-
-    def _start_next_round(self) -> None:
-        self.state.round_number += 1
-        self.state.phase = GamePhase.ROLL
-        self.state.current_player = 0
-        for player in self.state.players:
-            player.has_ended_round = False
-            player.has_rerolled = False
-            player.dice = DicePool.roll(self.rng)
-
-    def _advance_turn(self, player_id: int) -> None:
-        opponent_id = 1 - player_id
-        opponent = self.state.players[opponent_id]
-        player = self.state.players[player_id]
-        if opponent.has_ended_round:
-            self.state.current_player = player_id
-        else:
-            self.state.current_player = opponent_id
-
-    @staticmethod
-    def _element_to_dice_type(element: Element) -> DiceType:
-        mapping = {
-            Element.PYRO: DiceType.PYRO,
-            Element.HYDRO: DiceType.HYDRO,
-            Element.ANEMO: DiceType.ANEMO,
-            Element.ELECTRO: DiceType.ELECTRO,
-            Element.DENDRO: DiceType.DENDRO,
-            Element.CRYO: DiceType.CRYO,
-            Element.GEO: DiceType.GEO,
-        }
-        return mapping[element]
-
-
-def attacker_character_name(player) -> str:
-    return player.active_character.name
+        steps = 0
+        while not self.state.game_over and steps < max_steps:
+            self.step(players)
+            steps += 1
+        if not self.state.game_over:
+            raise RuntimeError("max_steps reached before game over")
+        return steps
