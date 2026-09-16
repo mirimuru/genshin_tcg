@@ -91,7 +91,7 @@ class Game:
 
         # 結晶化のシールドは反応を起こした攻撃の後に生成される。
         if reaction is ElementalReaction.CRYSTALLIZE and target_character.alive:
-            target.shield = min(2, target.shield + 1)
+            target.add_shield(1)
 
         if reaction in {
             ElementalReaction.ELECTRO_CHARGED,
@@ -387,6 +387,44 @@ class Game:
             raise ValueError("ダイスが不足しています")
         player.dice.pay(cost)
 
+    def _execute_tuning(self, action: Action) -> None:
+        player = self.state.players[action.player_id]
+        if not isinstance(action.target, DiceType) or action.target is DiceType.ANY:
+            raise ValueError("変換先のダイス種別が不正です")
+        if action.target not in DicePool.ROLLABLE_DICE_TYPES:
+            raise ValueError("変換先に選択できないダイスです")
+
+        active_dice_type = self._element_to_dice_type(player.active_character.element)
+        if action.target is active_dice_type or action.target is DiceType.OMNI:
+            raise ValueError("変換先が不正です")
+
+        if player.dice.count(action.target) <= 0:
+            raise ValueError("変換元のダイスが不足しています")
+
+        player.dice.remove(action.target, 1)
+        player.dice.add(active_dice_type, 1)
+
+    def _end_round(self, player_id: int) -> None:
+        player = self.state.players[player_id]
+        player.has_ended_round = True
+        opponent = self.state.players[1 - player_id]
+        if opponent.has_ended_round:
+            self._start_next_round()
+        else:
+            self.state.current_player = 1 - player_id
+
+    def _start_next_round(self) -> None:
+        self.state.round_number += 1
+        self.state.phase = GamePhase.ROLL
+        self.state.current_player = 0
+        for player in self.state.players:
+            player.has_ended_round = False
+            player.has_rerolled = False
+            player.dice = DicePool.roll(self.rng)
+
+    def _advance_turn(self, player_id: int) -> None:
+        self.state.current_player = 1 - player_id
+
     @staticmethod
     def _element_to_dice_type(element: Element) -> DiceType:
         mapping = {
@@ -399,39 +437,8 @@ class Game:
             Element.GEO: DiceType.GEO,
         }
         if element not in mapping:
-            return DiceType.OMNI
+            raise ValueError("物理属性のキャラクターには専用ダイスがありません")
         return mapping[element]
-
-    def _advance_turn(self, player_id: int) -> None:
-        self.state.current_player = 1 - player_id
-
-    def _end_round(self, player_id: int) -> None:
-        player = self.state.players[player_id]
-        player.has_ended_round = True
-
-        if not all(other.has_ended_round for other in self.state.players):
-            self._advance_turn(player_id)
-            return
-
-        self._resolve_end_phase()
-        self.state.round_number += 1
-        self.state.phase = GamePhase.ROLL
-        for other in self.state.players:
-            other.has_ended_round = False
-            other.has_rerolled = False
-        self._start_roll_phase()
-
-    def _resolve_end_phase(self) -> None:
-        for player in self.state.players:
-            usages = player.summons.get("burning_flame", 0)
-            if usages > 0:
-                target = self.state.opponent_of(player.player_id)
-                target.active_character.receive_damage(1)
-                if usages <= 1:
-                    player.summons.pop("burning_flame", None)
-                else:
-                    player.summons["burning_flame"] = usages - 1
-            self.state.check_game_over()
 
 
 def attacker_character_name(player) -> str:
