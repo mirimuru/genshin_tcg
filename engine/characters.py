@@ -4,7 +4,34 @@ from engine.state import CharacterDefinition as _StateCharacterDefinition
 
 
 class CharacterDefinition(_StateCharacterDefinition):
-    """キャラクターDefinitionの公開API。"""
+    """キャラクターDefinitionの公開API。
+
+    サブクラスではクラス属性としてメタデータを定義できるようにし、
+    ``DILUC = Diluc()`` のように引数なしで生成できる。
+    明示的な引数を渡した場合は通常のCharacterDefinitionとして初期化する。
+    """
+
+    character_id = ""
+    name = ""
+    element = None
+    max_hp = 10
+    max_energy = 2
+
+    def __init__(
+        self,
+        character_id: str | None = None,
+        name: str | None = None,
+        element=None,
+        max_hp: int | None = None,
+        max_energy: int | None = None,
+    ):
+        super().__init__(
+            character_id=self.character_id if character_id is None else character_id,
+            name=self.name if name is None else name,
+            element=self.element if element is None else element,
+            max_hp=self.max_hp if max_hp is None else max_hp,
+            max_energy=self.max_energy if max_energy is None else max_energy,
+        )
 
     def create_state(self):
         from engine.state import CharacterState
