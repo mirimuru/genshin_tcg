@@ -1,0 +1,36 @@
+from engine.statuses import StatusDefinition, StatusInstance, StatusRegistry
+from engine.summons import SummonDefinition, SummonInstance, SummonRegistry
+
+
+class CatalyzingField(StatusDefinition):
+    status_id = "catalyzing_field"
+    name = "草原核"
+    max_usages = 2
+
+
+class DendroCore(StatusDefinition):
+    status_id = "dendro_core"
+    name = "草原核"
+    max_usages = 2
+
+
+class BurningFlame(SummonDefinition):
+    summon_id = "burning_flame"
+    name = "燃焼の炎"
+    max_usages = 2
+
+
+DEFAULT_STATUS_REGISTRY = StatusRegistry((CatalyzingField, DendroCore))
+DEFAULT_SUMMON_REGISTRY = SummonRegistry((BurningFlame,))
+
+
+def create_catalyzing_field(usages: int = 2) -> StatusInstance:
+    return DEFAULT_STATUS_REGISTRY.create("catalyzing_field", usages=usages)
+
+
+def create_dendro_core(usages: int = 1) -> StatusInstance:
+    return DEFAULT_STATUS_REGISTRY.create("dendro_core", usages=usages)
+
+
+def create_burning_flame(usages: int = 1) -> SummonInstance:
+    return DEFAULT_SUMMON_REGISTRY.create("burning_flame", usages=usages)
