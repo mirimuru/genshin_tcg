@@ -44,8 +44,6 @@ class CharacterState:
 
         self.elemental_aura: Optional[Element] = None
         self.statuses = []
-        # 結晶化によるアクティブキャラクター用シールド。最大2ダメージを軽減する。
-        self.shield = 0
 
     @property
     def alive(self) -> bool:
@@ -63,18 +61,6 @@ class CharacterState:
         old_hp = self.hp
         self.hp = max(0, self.hp - amount)
         return old_hp - self.hp
-
-    def take_damage(self, amount: int, *, ignore_shield: bool = False) -> int:
-        """シールドを考慮してダメージを受け、実際に減少したHPを返す。"""
-        if amount < 0:
-            raise ValueError("damage amount must not be negative")
-
-        if ignore_shield or self.shield <= 0:
-            return self.receive_damage(amount)
-
-        absorbed = min(self.shield, amount)
-        self.shield -= absorbed
-        return self.receive_damage(amount - absorbed)
 
     def heal(self, amount: int) -> int:
         """回復し、実際に増加したHPを返す。"""
@@ -106,6 +92,9 @@ class PlayerState:
         self.dendro_core = 0
         # 原激化フィールド。次の草・雷ダメージ2回をそれぞれ1増加させる。
         self.catalyzing_field = 0
+        # チーム戦闘ステータスとしてのシールド。アクティブキャラクターに適用され、
+        # 交代すると新しいアクティブキャラクターへ引き継がれる。
+        self.shield = 0
 
     @property
     def active_character(self) -> CharacterState:
@@ -119,6 +108,18 @@ class PlayerState:
     def requires_switch(self) -> bool:
         """強制交代が必要か判定する。"""
         return (self.must_switch or not self.active_character.alive) and not self.defeated
+
+    def take_damage(self, amount: int, *, ignore_shield: bool = False) -> int:
+        """アクティブキャラクターへダメージを与え、チームシールドを先に消費する。"""
+        if amount < 0:
+            raise ValueError("damage amount must not be negative")
+
+        if ignore_shield or self.shield <= 0:
+            return self.active_character.receive_damage(amount)
+
+        absorbed = min(self.shield, amount)
+        self.shield -= absorbed
+        return self.active_character.receive_damage(amount - absorbed)
 
     def can_switch_to(self, index: int) -> bool:
         """指定したキャラクターへ交代可能か判定する。"""
