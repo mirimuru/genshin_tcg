@@ -4,7 +4,7 @@ from engine.actions import Action, ActionType
 from engine.dice import DicePool, DiceType
 from engine.effects import create_dendro_core
 from engine.game import Game
-from engine.state import CharacterState, Element, GameState, PlayerState
+from engine.state import CharacterDefinition, CharacterRegistry, CharacterState, Element, GameState, PlayerState
 
 
 class RecordingDefinition:
@@ -39,6 +39,71 @@ def make_game():
     game.state.players[0].dice = DicePool.default()
     game.state.players[1].dice = DicePool.default()
     return game
+
+
+def test_character_state_has_definition_by_default():
+    character = CharacterState("テストキャラ", Element.PYRO, max_hp=12, max_energy=3)
+    assert character.definition.character_id == "legacy:テストキャラ"
+    assert character.definition.name == "テストキャラ"
+    assert character.definition.element is Element.PYRO
+    assert character.definition.max_hp == 12
+    assert character.definition.max_energy == 3
+
+
+def test_character_state_can_be_created_from_definition():
+    definition = CharacterDefinition("test_character", "定義キャラ", Element.HYDRO, max_hp=8, max_energy=1)
+    character = CharacterState("ignored", Element.PYRO, definition=definition)
+    assert character.definition is definition
+    assert character.name == "定義キャラ"
+    assert character.element is Element.HYDRO
+    assert character.max_hp == 8
+    assert character.max_energy == 1
+    assert character.hp == 8
+
+
+def test_character_registry_resolves_definitions():
+    pyro = CharacterDefinition("pyro_test", "炎テスト", Element.PYRO)
+    hydro = CharacterDefinition("hydro_test", "水テスト", Element.HYDRO)
+    registry = CharacterRegistry([pyro, hydro])
+    assert registry.get("pyro_test") is pyro
+    assert registry.contains("hydro_test")
+    assert [definition.character_id for definition in registry] == ["pyro_test", "hydro_test"]
+
+
+def test_character_registry_rejects_duplicate_ids():
+    definition = CharacterDefinition("duplicate", "重複1", Element.PYRO)
+    registry = CharacterRegistry([definition])
+    with pytest.raises(ValueError, match="重複"):
+        registry.register(CharacterDefinition("duplicate", "重複2", Element.HYDRO))
+
+
+def test_character_registry_rejects_unknown_character():
+    registry = CharacterRegistry()
+    with pytest.raises(ValueError, match="未登録のキャラクター"):
+        registry.get("unknown")
+
+
+def test_game_uses_character_definition_without_manual_assignment():
+    definition = CharacterDefinition("pyro_test", "炎テスト", Element.PYRO)
+    players = []
+    for player_id in (0, 1):
+        characters = [
+            CharacterState("unused", Element.HYDRO, definition=definition),
+            CharacterState("控え1", Element.HYDRO),
+            CharacterState("控え2", Element.CRYO),
+        ]
+        players.append(PlayerState(player_id, characters))
+    game = Game(GameState(players))
+    game.execute_action(Action(0, ActionType.REROLL_DICE, target=()))
+    game.execute_action(Action(1, ActionType.REROLL_DICE, target=()))
+    game.state.players[0].dice = DicePool.default()
+    game.state.players[1].dice = DicePool.default()
+
+    target = game.state.players[1].active_character
+    game.execute_action(Action(0, ActionType.NORMAL_ATTACK))
+
+    assert target.hp == 8
+    assert game.state.players[0].active_character.energy == 1
 
 
 def test_execute_action_dispatches_normal_attack():
