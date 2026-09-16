@@ -15,6 +15,7 @@
 | キャラクター・プレイヤー状態管理 | 実装済み |
 | キャラクターDefinition / Registry | 実装済み |
 | 具体的キャラクターDefinition | ディルックを実装 |
+| Character Effect API | 実装済み |
 | HP・エネルギー管理 | 基本実装 |
 | ダメージ処理 | 実装済み |
 | キャラクター交代 | 実装済み |
@@ -36,6 +37,16 @@
 
 キャラクターの固定情報と固有行動を `CharacterDefinition` に分離し、`CharacterState` はHP・Energy・元素付着・Statusなどの可変状態を保持します。
 
+キャラクター固有効果からは共通の **Character Effect API** を利用でき、`Game` にキャラクターID/classごとの条件分岐を追加せずに状態効果を生成できます。
+
+現在の共通API:
+
+- `Game.add_character_status(player_id, character_index, status)`
+- `Game.add_combat_status(player_id, status)`
+- `Game.add_summon(player_id, summon)`
+
+これらは既存の `StatusDefinition` / `StatusInstance` / `SummonDefinition` / `SummonInstance` と `_emit_event()` のイベント配送経路を利用します。
+
 ```text
 CharacterDefinition
   ├─ character_id / name / element
@@ -43,6 +54,11 @@ CharacterDefinition
   ├─ normal_attack()
   ├─ elemental_skill()
   └─ elemental_burst()
+       │
+       └─ Game Effect API
+            ├─ add_character_status()
+            ├─ add_combat_status()
+            └─ add_summon()
 
 CharacterState
   ├─ definition
@@ -113,15 +129,17 @@ content/characters/
 python -m pytest
 ```
 
-直近のローカル実行では **166 tests / 166 passed** を確認済みです。キャラクターDefinition / Registry、ディルックDefinition、キャラクター交代を含む現在のテストスイートがすべて通過しています。
+キャラクターEffect APIについて、Character Status / Combat Status / Summonの追加、イベントによる自動期限切れ、CharacterDefinitionからの利用をテストしています。既存の166テストを維持したうえで、新規Effect APIテストを追加しています。
 
 ## ディレクトリ構成
 
 ```text
 engine/
+  __init__.py         # Gameへの共通Effect API登録
   actions.py
   cards.py
   dice.py
+  effect_api.py       # Character / Combat Status / Summon共通API
   effects.py
   elemental_reactions.py
   events.py
@@ -138,6 +156,7 @@ players/
   cpu.py
 tests/
   test_character_definitions.py
+  test_effect_api.py
   # その他各ルール・状態・反応・イベントのテスト
 ```
 
