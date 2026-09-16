@@ -49,3 +49,19 @@ def test_crystallize_shield_does_not_stack_above_two():
     game.deal_damage(0, 1, 2, Element.GEO)
 
     assert target.shield == 2
+
+
+def test_crystallize_shield_follows_the_active_character_after_switch():
+    game = make_game()
+    target_player = game.state.players[1]
+    target = target_player.active_character
+    target.elemental_aura = Element.PYRO
+    game.deal_damage(0, 1, 2, Element.GEO)
+
+    target_player.switch_character(1)
+    new_target = target_player.active_character
+    game.deal_damage(0, 1, 1, Element.PYRO)
+
+    assert target.shield == 0
+    assert new_target.hp == 10
+    assert target_player.shield == 1
