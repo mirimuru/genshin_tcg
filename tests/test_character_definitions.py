@@ -8,7 +8,7 @@ def test_diluc_definition_has_character_metadata():
     assert DILUC.name == "ディルック"
     assert DILUC.element is Element.PYRO
     assert DILUC.max_hp == 10
-    assert DILUC.max_energy == 2
+    assert DILUC.max_energy == 3
 
 
 def test_diluc_definition_creates_character_state():
@@ -18,6 +18,7 @@ def test_diluc_definition_creates_character_state():
     assert state.element is Element.PYRO
     assert state.hp == 10
     assert state.energy == 0
+    assert state.max_energy == 3
 
 
 def test_character_registry_resolves_diluc():
