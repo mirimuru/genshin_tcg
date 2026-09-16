@@ -22,12 +22,10 @@ class Game:
         target_character = target.active_character
         if not target_character.alive:
             return
-
         frozen_break_bonus = 0
         if self._is_frozen(target_character) and element in {Element.PYRO, Element.PHYSICAL}:
             target_character.statuses.remove("frozen")
             frozen_break_bonus = 2
-
         had_catalyzing_field = attacker.catalyzing_field > 0
         catalyzing_field_boost = 0
         reaction = None
@@ -43,20 +41,16 @@ class Game:
                 target_character.elemental_aura = element
         elif element is not Element.PHYSICAL:
             target_character.elemental_aura = element
-
         if element in {Element.DENDRO, Element.ELECTRO} and attacker.catalyzing_field > 0:
             attacker.catalyzing_field -= 1
             if reaction is not ElementalReaction.QUICKEN:
                 catalyzing_field_boost = 1
-
         if reaction is ElementalReaction.FROZEN and not self._is_frozen(target_character):
             target_character.statuses.append("frozen")
-
         dendro_core_boost = 0
         if element in {Element.PYRO, Element.ELECTRO} and attacker.dendro_core > 0:
             attacker.dendro_core -= 1
             dendro_core_boost = 2
-
         if reaction is ElementalReaction.BLOOM:
             attacker.dendro_core = min(2, attacker.dendro_core + 1)
         if reaction is ElementalReaction.OVERLOADED and not target.defeated:
@@ -65,20 +59,17 @@ class Game:
             attacker.summons["burning_flame"] = min(2, attacker.summons.get("burning_flame", 0) + 1)
         if reaction is ElementalReaction.QUICKEN and not had_catalyzing_field:
             attacker.catalyzing_field = 2
-
         total_damage = amount + reaction_bonus + catalyzing_field_boost + dendro_core_boost + frozen_break_bonus
         if reaction is not None:
             print(f"元素反応：{reaction.value}")
         print(f"{attacker_character_name(attacker)}が{target_character.name}に{total_damage}ダメージ（{element.value}）")
         target.take_damage(total_damage)
-
         if reaction is ElementalReaction.CRYSTALLIZE and target_character.alive:
             target.add_shield(1)
         if reaction in {ElementalReaction.ELECTRO_CHARGED, ElementalReaction.SUPERCONDUCT}:
             self._deal_reaction_penetration_damage(target)
         elif reaction is ElementalReaction.SWIRL and reacted_element is not None:
             self._deal_swirl_spread_damage(target, reacted_element)
-
         print(f"{target_character.name}のHP：{target_character.hp}/{target_character.max_hp}")
         self.state.check_game_over()
 
@@ -168,7 +159,6 @@ class Game:
             return [Action(player_id, ActionType.SWITCH_CHARACTER, target=index)
                     for index in player.alive_character_indices()
                     if index != player.active_character_index]
-
         actions = []
         character = player.active_character
         if not self._is_frozen(character):
@@ -182,12 +172,10 @@ class Game:
                 burst = Action(player_id, ActionType.ELEMENTAL_BURST)
                 if player.dice.can_pay(self.get_action_cost(burst)):
                     actions.append(burst)
-
         for card_id in player.hand:
             action = Action(player_id, ActionType.PLAY_CARD, card_id=card_id)
             if self._card_is_legal(player_id, card_id):
                 actions.append(action)
-
         target_dice = self._element_to_dice_type(character.element)
         actions.extend(Action(player_id, ActionType.ELEMENTAL_TUNING, target=dice_type)
                        for dice_type in DicePool.ROLLABLE_DICE_TYPES
@@ -209,7 +197,6 @@ class Game:
             raise ValueError("ゲーム終了後は行動できません")
         if player_id != self.state.current_player:
             raise ValueError("現在のプレイヤーではありません")
-
         player = self.state.players[player_id]
         if self.state.phase is GamePhase.ROLL:
             if action.action_type is not ActionType.REROLL_DICE:
@@ -224,7 +211,6 @@ class Game:
             ActionType.NORMAL_ATTACK, ActionType.ELEMENTAL_SKILL, ActionType.ELEMENTAL_BURST,
         }:
             raise ValueError("凍結中のキャラクターはこの行動を実行できません")
-
         if action.action_type is ActionType.SWITCH_CHARACTER:
             was_forced_switch = player.requires_switch
             if not was_forced_switch and not player.dice.can_pay(self.get_action_cost(action)):
@@ -252,7 +238,6 @@ class Game:
             self._execute_card(action)
         else:
             raise ValueError(f"未対応のActionTypeです: {action.action_type}")
-
         if not self.state.game_over:
             if action.action_type is ActionType.PLAY_CARD and self.card_registry.get(action.card_id).is_fast_action:
                 return
@@ -360,17 +345,34 @@ class Game:
             raise ValueError("変換先が不正です")
         if player.dice.count(action.target) <= 0:
             raise ValueError("変換元のダイスが不足しています")
-        player.dice.remove(action.target, 1)
-        player.dice.add(active_dice_type, 1)
+        player.dice.harmonize(action.target, active_dice_type)
 
     def _end_round(self, player_id: int) -> None:
         player = self.state.players[player_id]
         player.has_ended_round = True
         opponent = self.state.players[1 - player_id]
         if opponent.has_ended_round:
-            self._start_next_round()
+            self._resolve_end_of_round_effects()
+            if not self.state.game_over:
+                self._start_next_round()
         else:
             self.state.current_player = 1 - player_id
+
+    def _resolve_end_of_round_effects(self) -> None:
+        for player_id, player in enumerate(self.state.players):
+            burning_uses = player.summons.get("burning_flame", 0)
+            if burning_uses <= 0:
+                continue
+            player.summons.pop("burning_flame", None)
+            for _ in range(burning_uses):
+                if self.state.game_over:
+                    break
+                self.deal_damage(player_id, 1 - player_id, 1, Element.PYRO)
+
+        for player in self.state.players:
+            for character in player.characters:
+                if "frozen" in character.statuses:
+                    character.statuses.remove("frozen")
 
     def _start_next_round(self) -> None:
         self.state.round_number += 1
@@ -387,9 +389,12 @@ class Game:
     @staticmethod
     def _element_to_dice_type(element: Element) -> DiceType:
         mapping = {
-            Element.PYRO: DiceType.PYRO, Element.HYDRO: DiceType.HYDRO,
-            Element.ANEMO: DiceType.ANEMO, Element.ELECTRO: DiceType.ELECTRO,
-            Element.DENDRO: DiceType.DENDRO, Element.CRYO: DiceType.CRYO,
+            Element.PYRO: DiceType.PYRO,
+            Element.HYDRO: DiceType.HYDRO,
+            Element.ANEMO: DiceType.ANEMO,
+            Element.ELECTRO: DiceType.ELECTRO,
+            Element.DENDRO: DiceType.DENDRO,
+            Element.CRYO: DiceType.CRYO,
             Element.GEO: DiceType.GEO,
         }
         if element not in mapping:
