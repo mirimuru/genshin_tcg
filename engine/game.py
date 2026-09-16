@@ -23,19 +23,13 @@ class Game:
         for player in self.state.players:
             combat_statuses = list(player.combat_statuses)
             summons = list(player.summons.values())
-            character_statuses = [
-                (index, status)
-                for index, character in enumerate(player.characters)
-                for status in list(character.statuses)
-            ]
-
+            character_statuses = [(index, status) for index, character in enumerate(player.characters) for status in list(character.statuses)]
             for status in combat_statuses:
                 status.definition.on_event(status, event, self, EffectContext(player.player_id))
             for summon in summons:
                 summon.definition.on_event(summon, event, self, EffectContext(player.player_id))
             for index, status in character_statuses:
                 status.definition.on_event(status, event, self, EffectContext(player.player_id, index))
-
             player.remove_expired_combat_statuses()
             player.remove_expired_summons()
             for character in player.characters:
@@ -47,12 +41,11 @@ class Game:
         target_character = target.active_character
         if not target_character.alive:
             return
-
         frozen_break_bonus = 0
         if self._is_frozen(target_character) and element in {Element.PYRO, Element.PHYSICAL}:
             target_character.remove_status("frozen")
             frozen_break_bonus = 2
-
+        had_catalyzing_field = attacker.get_combat_status("catalyzing_field") is not None
         reaction = None
         reaction_bonus = 0
         reacted_element = target_character.elemental_aura
@@ -66,48 +59,37 @@ class Game:
                 target_character.elemental_aura = element
         elif element is not Element.PHYSICAL:
             target_character.elemental_aura = element
-
         if reaction is ElementalReaction.FROZEN and not self._is_frozen(target_character):
             target_character.add_status(self._create_frozen_status())
-
         if reaction is ElementalReaction.BLOOM:
             existing = attacker.get_combat_status("dendro_core")
             if existing is None:
                 attacker.add_combat_status(create_dendro_core(1))
             else:
                 existing.usages = min(2, (existing.usages or 0) + 1)
-
         if reaction is ElementalReaction.OVERLOADED and not target.defeated:
             target.must_switch = True
-
         if reaction is ElementalReaction.BURNING:
             existing = attacker.get_summon("burning_flame")
             if existing is None:
                 attacker.add_summon(create_burning_flame(1))
             else:
                 existing.usages = min(2, (existing.usages or 0) + 1)
-
         total_damage = amount + reaction_bonus + frozen_break_bonus
         damage_event = DamageEvent(attacker_id, target_id, total_damage, element, reaction)
         self._emit_event(damage_event)
-
-        # Quicken creates the field after the triggering damage event so that
-        # the newly created field is not consumed by that same damage instance.
-        if reaction is ElementalReaction.QUICKEN and attacker.get_combat_status("catalyzing_field") is None:
+        if reaction is ElementalReaction.QUICKEN and not had_catalyzing_field:
             attacker.add_combat_status(create_catalyzing_field(2))
-
         if reaction is not None:
             print(f"元素反応：{reaction.value}")
         print(f"{attacker_character_name(attacker)}が{target_character.name}に{damage_event.amount}ダメージ（{element.value}）")
         target.take_damage(damage_event.amount)
-
         if reaction is ElementalReaction.CRYSTALLIZE and target_character.alive:
             target.add_shield(1)
         if reaction in {ElementalReaction.ELECTRO_CHARGED, ElementalReaction.SUPERCONDUCT}:
             self._deal_reaction_penetration_damage(target)
         elif reaction is ElementalReaction.SWIRL and reacted_element is not None:
             self._deal_swirl_spread_damage(target, reacted_element)
-
         print(f"{target_character.name}のHP：{target_character.hp}/{target_character.max_hp}")
         self.state.check_game_over()
 
@@ -330,8 +312,7 @@ class Game:
 
     def _get_reroll_actions(self, player_id: int) -> list[Action]:
         dice = self.state.players[player_id].dice.as_list()
-        return [Action(player_id, ActionType.REROLL_DICE, target=tuple(dice[index] for index in range(len(dice)) if mask & (1 << index)))
-                for mask in range(1 << len(dice))]
+        return [Action(player_id, ActionType.REROLL_DICE, target=tuple(dice[index] for index in range(len(dice)) if mask & (1 << index))) for mask in range(1 << len(dice))]
 
     def _execute_reroll(self, action: Action) -> None:
         player = self.state.players[action.player_id]
