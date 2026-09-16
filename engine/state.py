@@ -188,7 +188,12 @@ class PlayerState:
     def remove_expired_summons(self): self.summons = {i:s for i,s in self.summons.items() if not s.expired}
     def can_switch_to(self, index): return 0 <= index < len(self.characters) and index != self.active_character_index and self.characters[index].alive
     def switch_character(self, index):
-        if not self.can_switch_to(index): raise ValueError("交代先のキャラクターを選択できません")
+        if not isinstance(index, int) or index < 0 or index >= len(self.characters):
+            raise ValueError("存在しないキャラクターです")
+        if index == self.active_character_index:
+            raise ValueError("すでにアクティブなキャラクターです")
+        if not self.characters[index].alive:
+            raise ValueError("戦闘不能のキャラクターには交代できません")
         self.active_character_index = index
     def alive_character_indices(self): return [i for i,c in enumerate(self.characters) if c.alive]
 
