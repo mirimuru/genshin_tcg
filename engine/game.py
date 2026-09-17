@@ -233,6 +233,8 @@ class Game:
             card = self.card_registry.get(card_id)
         except ValueError:
             return False
+        if not card.is_target_legal(self, player_id, target):
+            return False
         cost = card.get_cost(self, player_id)
         return player.dice.can_pay(cost) and card.can_play(self, player_id, target)
 
@@ -265,9 +267,15 @@ class Game:
                 if player.dice.can_pay(self.get_action_cost(burst)):
                     actions.append(burst)
         for card_id in player.hand:
-            action = Action(player_id, ActionType.PLAY_CARD, card_id=card_id)
-            if self._card_is_legal(player_id, card_id):
-                actions.append(action)
+            try:
+                card = self.card_registry.get(card_id)
+            except ValueError:
+                continue
+            if not player.dice.can_pay(card.get_cost(self, player_id)):
+                continue
+            for target in card.get_legal_targets(self, player_id):
+                if self._card_is_legal(player_id, card_id, target):
+                    actions.append(Action(player_id, ActionType.PLAY_CARD, target=target, card_id=card_id))
         target_dice = self._element_to_dice_type(character.element)
         actions.extend(Action(player_id, ActionType.ELEMENTAL_TUNING, target=dice_type) for dice_type in DicePool.ROLLABLE_DICE_TYPES
                        if dice_type not in (DiceType.OMNI, target_dice) and player.dice.count(dice_type) > 0)
@@ -301,7 +309,7 @@ class Game:
         if action.action_type is ActionType.SWITCH_CHARACTER:
             if action.card_id is not None or not isinstance(action.target, int):
                 return False
-            return player.dice.can_pay(self.get_action_cost(action))
+            return player.dice.can_pay(self.get_action_cost(action)) and player.can_switch_to(action.target)
         if action.action_type is ActionType.ELEMENTAL_TUNING:
             if action.card_id is not None or not isinstance(action.target, DiceType) or action.target is DiceType.ANY:
                 return False
@@ -370,6 +378,8 @@ class Game:
         cost = card.get_cost(self, action.player_id)
         if not player.dice.can_pay(cost):
             raise ValueError("カードのコストを支払うダイスが不足しています")
+        if not card.is_target_legal(self, action.player_id, action.target):
+            raise ValueError("カードの対象が不正です")
         if not card.can_play(self, action.player_id, action.target):
             raise ValueError("現在の状態ではそのカードを使用できません")
         player.dice.pay(cost)
