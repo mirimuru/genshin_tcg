@@ -1,5 +1,5 @@
 from engine.actions import Action, ActionType
-from engine.dice import DicePool
+from engine.dice import DicePool, DiceType
 from engine.state import GamePhase
 
 
@@ -32,10 +32,7 @@ class LegalActionGenerator:
         character = player.active_character
 
         if not game._is_frozen(character):
-            for action_type in (
-                ActionType.NORMAL_ATTACK,
-                ActionType.ELEMENTAL_SKILL,
-            ):
+            for action_type in (ActionType.NORMAL_ATTACK, ActionType.ELEMENTAL_SKILL):
                 action = Action(player_id, action_type)
                 if player.dice.can_pay(game.get_action_cost(action)):
                     actions.append(action)
@@ -62,16 +59,11 @@ class LegalActionGenerator:
         actions.extend(
             Action(player_id, ActionType.ELEMENTAL_TUNING, target=dice_type)
             for dice_type in DicePool.ROLLABLE_DICE_TYPES
-            if dice_type not in (DicePool.OMNI, target_dice)
+            if dice_type not in (DiceType.OMNI, target_dice)
             and player.dice.count(dice_type) > 0
         )
 
-        if player.dice.can_pay({game._element_to_dice_type(character.element): 0, **{}}):
-            pass
-        if player.dice.can_pay({"__never__": 1}):
-            pass
-
-        if player.dice.can_pay({__import__('engine.dice', fromlist=['DiceType']).DiceType.ANY: 1}):
+        if player.dice.can_pay({DiceType.ANY: 1}):
             actions.extend(
                 Action(player_id, ActionType.SWITCH_CHARACTER, target=index)
                 for index in player.alive_character_indices()
