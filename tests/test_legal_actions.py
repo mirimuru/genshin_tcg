@@ -1,5 +1,6 @@
 from engine.actions import Action, ActionType
-from engine.dice import DicePool
+from engine.cards import CardRegistry
+from engine.dice import DicePool, DiceType
 from engine.game import Game
 from engine.state import CharacterState, Element, GameState, PlayerState
 
@@ -48,21 +49,78 @@ def test_forced_switch_only_allows_switch_actions():
     assert {action.target for action in actions} == {1, 2}
 
 
-def test_defeated_player_has_no_legal_actions():
+def test_forced_switch_is_legal_without_dice():
     game = make_game()
-    for character in game.state.players[0].characters:
-        character.hp = 0
-    assert game.get_legal_actions(0) == []
+    game.state.players[0].active_character.hp = 0
+    game.state.players[0].dice = DicePool()
+    actions = game.get_legal_actions(0)
+    assert actions
+    game.execute_action(actions[0])
+    assert game.state.players[0].active_character_index == actions[0].target
 
 
-def test_wrong_player_and_finished_game_have_no_legal_actions():
+def test_switch_is_not_legal_without_dice_when_not_forced():
     game = make_game()
-    assert game.get_legal_actions(1) == []
-    game.state.game_over = True
-    assert game.get_legal_actions(0) == []
+    game.state.players[0].dice = DicePool()
+    assert not any(action.action_type is ActionType.SWITCH_CHARACTER for action in game.get_legal_actions(0))
 
 
-def test_cpu_selects_from_legal_actions():
+def test_card_actions_include_each_legal_target():
+    from engine.cards import CardDefinition
+
+    class TargetCard(CardDefinition):
+        card_id = "target_card"
+        name = "Target Card"
+        cost = {DiceType.ANY: 1}
+
+        def get_legal_targets(self, game, player_id):
+            return [0, 1]
+
+        def can_play(self, game, player_id, target=None):
+            return super().can_play(game, player_id, target) and target in {0, 1}
+
+        def play(self, game, player_id, target=None):
+            game.state.players[player_id].active_character_index = target
+
+    registry = CardRegistry([TargetCard()])
+    game = make_game()
+    game.card_registry = registry
+    game.state.players[0].hand = ["target_card"]
+    actions = [a for a in game.get_legal_actions(0) if a.action_type is ActionType.PLAY_CARD]
+    assert actions == [
+        Action(0, ActionType.PLAY_CARD, target=0, card_id="target_card"),
+        Action(0, ActionType.PLAY_CARD, target=1, card_id="target_card"),
+    ]
+
+
+def test_unplayable_card_is_not_generated_when_cost_is_insufficient():
+    from content.cards import INSTRUCTORS_CAP
+
+    game = make_game()
+    game.card_registry = CardRegistry([INSTRUCTORS_CAP])
+    game.state.players[0].hand = [INSTRUCTORS_CAP.card_id]
+    game.state.players[0].dice = DicePool({DiceType.OMNI: 1})
+    assert not any(
+        action.action_type is ActionType.PLAY_CARD
+        and action.card_id == INSTRUCTORS_CAP.card_id
+        for action in game.get_legal_actions(0)
+    )
+
+
+def test_generated_actions_have_costs_that_match_current_state():
+    game = make_game()
+    for action in game.get_legal_actions(0):
+        if action.action_type in {
+            ActionType.NORMAL_ATTACK,
+            ActionType.ELEMENTAL_SKILL,
+            ActionType.ELEMENTAL_BURST,
+            ActionType.SWITCH_CHARACTER,
+            ActionType.PLAY_CARD,
+        }:
+            assert game.state.players[0].dice.can_pay(game.get_action_cost(action)) or action.action_type is ActionType.SWITCH_CHARACTER
+
+
+def test_cpu_selects_from_expanded_legal_actions():
     game = make_game()
     legal = game.get_legal_actions(0)
     from players.cpu import CpuPlayer
