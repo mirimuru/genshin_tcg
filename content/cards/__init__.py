@@ -18,6 +18,11 @@ from content.cards.talents import (
     ColdBloodedStrike,
     ColdBloodedStrikeStatus,
 )
+from content.cards.weapons import (
+    TRAVELER_HANDY_SWORD,
+    TravelerHandySword,
+    TravelerHandySwordStatus,
+)
 
 __all__ = [
     "JUEYUN_GUOBA",
@@ -34,4 +39,7 @@ __all__ = [
     "COLD_BLOODED_STRIKE",
     "ColdBloodedStrike",
     "ColdBloodedStrikeStatus",
+    "TRAVELER_HANDY_SWORD",
+    "TravelerHandySword",
+    "TravelerHandySwordStatus",
 ]

@@ -222,7 +222,7 @@ class Game:
         if action.action_type is ActionType.PLAY_CARD:
             if action.card_id is None:
                 return {}
-            return dict(self.card_registry.get(action.card_id).cost)
+            return dict(self.card_registry.get(action.card_id).get_cost(self, action.player_id))
         return {}
 
     def _card_is_legal(self, player_id: int, card_id: str, target=None) -> bool:
@@ -233,7 +233,8 @@ class Game:
             card = self.card_registry.get(card_id)
         except ValueError:
             return False
-        return player.dice.can_pay(card.cost) and card.can_play(self, player_id, target)
+        cost = card.get_cost(self, player_id)
+        return player.dice.can_pay(cost) and card.can_play(self, player_id, target)
 
     def get_legal_actions(self, player_id: int) -> list[Action]:
         if player_id not in (0, 1):
@@ -329,11 +330,12 @@ class Game:
             raise NotImplementedError("カードが実装されていません") from exc
         if action.card_id not in player.hand:
             raise ValueError("指定されたカードが手札にありません")
-        if not player.dice.can_pay(card.cost):
+        cost = card.get_cost(self, action.player_id)
+        if not player.dice.can_pay(cost):
             raise ValueError("カードのコストを支払うダイスが不足しています")
         if not card.can_play(self, action.player_id, action.target):
             raise ValueError("現在の状態ではそのカードを使用できません")
-        player.dice.pay(card.cost)
+        player.dice.pay(cost)
         player.hand.remove(action.card_id)
         event = CardActionEvent(action.player_id, action.card_id, action.target)
         self._emit_event(event)

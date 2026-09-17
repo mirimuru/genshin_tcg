@@ -18,9 +18,6 @@
 | Character Effect API | 実装済み |
 | キャラクター固有ダメージ変更フック | 実装済み |
 | キャラクター固有コスト定義 | 実装済み |
-| ディルック固有効果 | 実装済み（スキル3回目強化・元素爆発・炎元素付与） |
-| 香菱固有効果 | 実装済み（グゥオパァー・旋火輪をイベント駆動で生成） |
-| ガイア固有効果 | 実装済み（元素爆発・霜の舞を交代イベントで処理） |
 | HP・エネルギー管理 | 基本実装 |
 | ダメージ処理 | 実装済み |
 | キャラクター交代 | 実装済み |
@@ -28,43 +25,40 @@
 | CPU対CPUの進行 | 実装済み |
 | ダイス生成・支払い・調和・再ロール | 実装済み |
 | 元素付着・元素反応 | 実装済み（対応範囲は拡張中） |
-| Character Status | 実装済み |
-| Combat Status | 実装済み |
+| Character Status / Combat Status | 実装済み |
 | Summon | 実装済み |
 | Status / Summon イベントフック | 実装済み |
-| キャラクターアクションイベント | 実装済み（通常攻撃・元素スキル・元素爆発の開始/解決） |
+| キャラクターアクションイベント | 実装済み（開始/解決） |
 | キャラクター交代イベント | 実装済み（開始/解決） |
 | ダメージイベント | 実装済み（確定前/確定後） |
 | エネルギー変更イベント | 実装済み（変更前/変更後） |
 | ラウンド終了イベント | 実装済み |
 | カード定義・Registry | 基盤実装済み |
 | カードアクションイベント | 実装済み（使用開始/解決後） |
-| Combat Statusを生成するコンテンツカード | 絶雲お焦げを実装 |
-| Summonを生成するコンテンツカード | アビスの呼びかけを実装 |
-| 装備状態 / 装備スロット | 基盤実装済み（Character State） |
+| 食事カード | 実装済み |
+| Summon生成カード | 実装済み |
+| 装備状態 / 装備スロット | 実装済み |
 | 天賦カード | ガイア「冷血の剣」を実装 |
+| 武器カード基盤 | 実装済み |
+| 武器カード参照実装 | 片手剣「旅道の剣」を実装 |
 | GUI・対戦画面 | 未実装 |
 
-## キャラクターDefinitionのアーキテクチャ
+## キャラクターDefinition
 
 キャラクターの固定情報と固有行動を `CharacterDefinition` に分離し、`CharacterState` はHP・Energy・元素付着・Statusなどの可変状態を保持します。
 
-キャラクター固有効果からは共通の **Character Effect API** を利用でき、`Game` にキャラクターID/classごとの条件分岐を追加せずに状態効果を生成できます。
+`CharacterDefinition` には武器種 `weapon_type` も保持できます。現在は `sword` / `claymore` / `polearm` / `bow` / `catalyst` を想定した文字列値を使用し、既存キャラクターとの後方互換性のため未指定も許容します。
 
 ```text
 CharacterDefinition
   ├─ character_id / name / element
   ├─ max_hp / max_energy
+  ├─ weapon_type
   ├─ normal_attack()
   ├─ elemental_skill()
   └─ elemental_burst()
        │
-       ├─ Character Effect API
-       │    ├─ add_character_status()
-       │    ├─ add_combat_status()
-       │    └─ add_summon()
-       │
-       └─ Character Status / Combat Status / Summon
+       └─ Character Status / Combat Status / Summon / Equipment
 
 CharacterState
   ├─ definition
@@ -76,18 +70,21 @@ CharacterRegistry
   └─ character_id -> CharacterDefinition
 
 content/characters/
-  ├─ diluc.py
-  ├─ kaeya.py
-  └─ xiangling.py
+  ├─ diluc.py       # claymore
+  ├─ kaeya.py       # sword
+  └─ xiangling.py   # polearm
 ```
 
-## カードDefinitionのアーキテクチャ
+## カードDefinition
 
-カードの固定情報と固有効果を `CardDefinition` に分離し、`Game` はカードIDから `CardRegistry` を通して定義を解決します。カード固有処理を `Game` のカードID分岐へ追加せず、`content/cards/` の個別ファイルへ配置できます。
+カードの固定情報と固有効果を `CardDefinition` に分離し、`Game` はカードIDから `CardRegistry` を通して定義を解決します。カード固有処理は `content/cards/` の個別ファイルへ配置します。
+
+`CardDefinition.get_cost()` を通して、現在のゲーム状態からコストを解決できる設計にしています。通常カードは静的な `cost` を返し、武器カードはアクティブキャラクターの元素に応じて「同色」コストを返します。
 
 ```text
 CardDefinition
   ├─ card_id / name / cost
+  ├─ get_cost()
   ├─ can_play()
   └─ play()
        │
@@ -98,8 +95,15 @@ CardDefinition
 TalentCardDefinition
   ├─ equipment_slot = "talent"
   ├─ required_character_id
-  ├─ can_play()       # 対象キャラクターがアクティブか検証
-  └─ create_status()  # 装備Statusを生成
+  ├─ can_play()
+  └─ create_status()
+
+WeaponCardDefinition
+  ├─ equipment_slot = "weapon"
+  ├─ weapon_type
+  ├─ get_cost()       # アクティブキャラクターの元素に応じた同色コスト
+  ├─ can_play()       # アクティブキャラクターの武器種を検証
+  └─ create_status()  # WeaponEquipmentStatusDefinitionを生成
        │
        └─ CharacterState.add_equipment()
 
@@ -107,90 +111,57 @@ CardRegistry
   └─ card_id -> CardDefinition
 
 content/cards/
-  ├─ __init__.py
   ├─ foods.py
   ├─ summons.py
-  └─ talents.py
+  ├─ talents.py
+  └─ weapons.py
 ```
 
-現在のコンテンツカードは以下を実装しています。
+## 装備システム
 
-- `モンド風ハッシュドポテト`: 出場キャラクターが生存しておりHPが最大未満の場合に使用でき、1HP回復。コストは任意1ダイス。
-- `絶雲お焦げ`: Combat Statusを生成し、次に使用する通常攻撃のダメージを1増加。
-- `アビスの呼びかけ`: ランダムなヒルチャール召喚物を1体生成。各ヒルチャールはラウンド終了時に対応元素1ダメージを与え、使用可能回数を1消費する。
-- `冷血の剣`: ガイア専用天賦カード。装備時に元素スキルを即時使用し、装備中は元素スキル使用後に1ラウンド1回まで2HP回復する。コストは氷4ダイス。
+装備は `EquipmentStatusDefinition` を共通基盤として、キャラクターの `statuses` に保持します。
 
-## カードから状態効果を生成する流れ
+`CharacterState.add_equipment()` は `equipment_slot` が同じ装備を置き換えます。そのため、天賦と武器は独立したスロットとして同時に装備でき、同じスロットの武器を付け替えた場合は以前の武器だけが置き換わります。
 
-カード効果はキャラクター固有処理と同じイベント・状態基盤を利用します。
+武器専用には `WeaponEquipmentStatusDefinition` を追加し、`weapon_type` を持たせています。`WeaponCardDefinition` はカード側の武器種と生成する装備Statusの武器種が一致することも検証します。
 
-```text
-CardActionEvent
-      │
-      ▼
-CardDefinition.play()
-      │
-      ├── Combat Status
-      │      └── Damage / CharacterActionEventへ反応
-      │
-      ├── Summon
-      │      └── RoundEndEvent / 後続アクションへ反応
-      │
-      └── TalentCardDefinition
-             │
-             └── CharacterState.add_equipment()
-                    │
-                    └── EquipmentStatusDefinition
-                           └── CharacterActionEventへ反応
-```
+### 武器カード参照実装
 
-### ディルック
+`content/cards/weapons.py` に片手剣「旅道の剣」を参照実装しています。現在の七聖召喚カード仕様では、2個の同色元素サイコロをコストとし、片手剣キャラクターのみ装備でき、装備キャラクターの与えるダメージを+1します。
 
-現在のディルックDefinitionは、2026年時点の七聖召喚カード仕様を基準に以下を実装しています。
+- `card_id = traveler_handy_sword`
+- `weapon_type = sword`
+- 武器スロットへ装備
+- コストはアクティブキャラクターの元素に対応する同色2ダイス
+- 装備キャラクターの通常攻撃に+1ダメージ
+- 元素スキルなど通常攻撃以外には適用しない
 
-- 通常攻撃: 2物理ダメージ、炎1 + 任意2
-- 元素スキル: 3炎ダメージ、ラウンド中3回目のみ+2
-- 元素爆発: 8炎ダメージ、Energy 3、炎4ダイス
-- 元素爆発後: 2ラウンドの炎元素付与
-- 炎元素付与中は物理ダメージを炎ダメージへ変換
-- 元素スキル使用回数はCharacter Statusのデータとして保持し、ラウンド終了時にリセット
+通常攻撃への効果は `NormalAttackEvent` の開始イベントで状態を有効化し、既存の `modify_damage()` フックでダメージ確定前に+1します。これにより `Game` 本体へ武器IDごとの条件分岐を追加していません。
 
-### 香菱
+## 現在のコンテンツカード
 
-香菱はイベント駆動型キャラクターのリファレンス実装として追加しています。カードデータでは、通常攻撃が2物理ダメージ、元素スキル「グゥオパァー出撃」がグゥオパァーを2回使用で生成、元素爆発「旋火輪」が3炎ダメージと旋火輪を2回使用で生成します。
-
-実装では `ElementalSkillEvent` / `ElementalBurstEvent` の解決イベントを `Character Status` が購読し、対応する `Summon` を生成します。グゥオパァーは `RoundEndEvent`、旋火輪は後続の `ElementalSkillEvent` に反応してダメージを与えます。これにより、キャラクター固有処理を `Game` のキャラクターID分岐へ追加せずに実装できます。
-
-### ガイア
-
-ガイアは `CharacterSwitchEvent` を利用するイベント駆動型キャラクターのリファレンスとして追加しています。公式カード仕様では、元素爆発「凛冽なる輪舞」は1氷ダメージを与え、「霜の舞」を3回使用で生成し、自分がキャラクターを交代した後に2氷ダメージを与えます。
-
-実装では元素爆発の解決イベントをCharacter Statusが購読して `kaeya_icicle` Combat Statusを生成し、そのCombat Statusが自分の `CharacterSwitchEvent` の解決時に2氷ダメージを与えて使用回数を1消費します。相手側の交代では発動しません。
-
-### ガイア天賦「冷血の剣」
-
-`ColdBloodedStrike` は装備カードのリファレンス実装です。七聖召喚の仕様では、アクティブキャラクターがガイアのときに装備し、装備直後に「霜の噛みつき」を即時使用します。装備中のガイアが元素スキルを使用すると、1ラウンドにつき1回、ガイアを2HP回復します。citeturn0search0turn0search2
-
-実装では `TalentCardDefinition` が対象キャラクター条件を検証し、`CharacterState.add_equipment()` が `talent` スロットへ装備します。装備状態は `EquipmentStatusDefinition` として通常のCharacter Statusと同じイベントパイプラインを購読し、元素スキルの解決イベントから回復を行います。即時使用もカード固有の `play()` から共通の `Game.elemental_skill()` を呼び出して処理します。
+- `モンド風ハッシュドポテト`: 出場キャラクターを1HP回復。コストは任意1ダイス。
+- `絶雲お焦げ`: 次に使用する通常攻撃のダメージを1増加。
+- `アビスの呼びかけ`: ランダムなヒルチャール召喚物を1体生成。
+- `冷血の剣`: ガイア専用天賦カード。装備時に元素スキルを即時使用し、装備中の元素スキル後にラウンド1回2HP回復。
+- `旅道の剣`: 片手剣武器カード。アクティブキャラクターの元素に対応する同色2ダイスで使用し、装備キャラクターの与えるダメージを+1。
 
 ## 状態効果のアーキテクチャ
 
-ゲーム中の持続効果は、用途に応じて3種類に分離しています。
+ゲーム中の持続効果は、用途に応じて以下に分離しています。
 
 - **Character Status**: 個々のキャラクターに付与される状態
 - **Combat Status**: プレイヤー側に保持され、交代しても維持される状態
 - **Summon**: プレイヤー側に保持され、ラウンド終了や後続アクションなどのイベントで処理される召喚物
 - **Equipment Status**: Character Statusのイベント基盤を利用しつつ、`equipment_slot` 単位で装備を管理する状態
 
-各状態は `Definition` と `Instance` に分離されています。`StatusInstance` は追加の状態データを `data` として保持でき、キャラクター固有の使用回数やラウンド内カウンタにも利用できます。
-
-`CharacterState.add_equipment()` は同じ装備スロットの既存装備を置き換えるため、今後 `talent` に加えて `weapon` や `artifact` を追加できます。
+各状態は `Definition` と `Instance` に分離されています。`StatusInstance` は `data` を保持でき、キャラクター固有の使用回数やラウンド内カウンタにも利用できます。
 
 ## イベントシステム
 
-`engine/events.py` にゲームイベントを定義し、`Game._emit_event()` がイベント開始時点で存在する Status / Summon をスナップショットとして取得して通知します。
+`engine/events.py` にゲームイベントを定義し、`Game._emit_event()` が現在存在するStatus / Summonへイベントを通知します。
 
-現在のイベント:
+現在の主なイベント:
 
 - `NormalAttackEvent`
 - `ElementalSkillEvent`
@@ -201,7 +172,7 @@ CardDefinition.play()
 - `RoundEndEvent`
 - `CardActionEvent`
 
-キャラクターアクション、交代、カードイベントには `resolved` フラグがあり、開始通知と解決通知を同じイベント型で扱います。Damage / Energyについても、確定前と確定後を同じイベント境界で処理します。
+キャラクターアクション、交代、カードイベントには `resolved` フラグがあり、開始通知と解決通知を同じイベント型で扱います。
 
 ## 実装済み元素反応
 
@@ -237,84 +208,35 @@ CardDefinition.play()
 python -m pytest
 ```
 
-直近のローカル確認では **212 passed**。その後、天賦カード・装備状態について5件のテストを追加しており、今回の実装後の想定テスト数は **217件** です。GitHub Actionsでもpytestを実行しています。
+武器装備基盤の実装では、既存テストを壊さないことを確認したうえで武器関連テスト9件を追加しました。
 
-イベント駆動部分では、以下をテストしています。
+**GitHub Actionsで 226 passed** を確認済みです。
+
+主なテスト対象:
 
 - 通常攻撃・元素スキル・元素爆発の開始/解決イベント
 - キャラクター交代の開始/解決イベント
 - カード使用の開始/解決イベント
-- Status / Summonのイベント購読とスナップショット性
+- Status / Summonのイベント購読
 - DamageEventの変更と実ダメージへの反映
-- EnergyEventの上限・下限適用後の実変化量
-- 香菱のグゥオパァー・旋火輪のイベント駆動生成と消費
-- ガイアの元素爆発・霜の舞の交代イベント処理
-- ディルックの既存固有効果
-- モンド風ハッシュドポテトの使用条件・回復・コスト
-- 絶雲お焦げのCombat Status生成・通常攻撃へのダメージ加算・消費
-- アビスの呼びかけのカード→Summon生成
-- ヒルチャール召喚物のRoundEndEventによる元素ダメージ・使用回数消費
-- 天賦カードの装備条件・装備状態生成・即時元素スキル
-- 天賦装備中の元素スキルによる1ラウンド1回の回復
-- 同一装備スロットの装備置換
+- EnergyEventの上限・下限適用
+- 元素反応と各反応固有効果
+- 食事カード・Summon生成カード・天賦カード
+- 天賦装備と同一装備スロットの置換
+- キャラクターの武器種定義
+- 武器装備Statusの生成
+- 武器カードの武器種一致/不一致判定
+- 武器カードの同色コスト判定
+- 武器カードの装備処理
+- 片手剣による通常攻撃ダメージ+1
+- 武器効果が元素スキルへ誤適用されないこと
 
-## ディレクトリ構成
+## 今後の予定
 
-```text
-engine/
-  __init__.py         # Gameへの共通Effect API登録
-  actions.py
-  cards.py            # CardDefinition / TalentCardDefinition / CardRegistry
-  dice.py
-  effect_api.py       # Character / Combat Status / Summon共通API
-  effects.py
-  elemental_reactions.py
-  events.py           # ゲームイベント定義
-  game.py
-  characters.py       # CharacterDefinition / Registry
-  state.py            # ゲーム状態・キャラクター状態・装備管理
-  statuses.py         # Status / EquipmentStatus定義
-  summons.py
-content/
-  characters/
-    diluc.py          # ディルックDefinition
-    kaeya.py          # ガイアDefinition・固有Combat Status
-    xiangling.py      # 香菱Definition・固有Summon
-  cards/
-    __init__.py       # コンテンツカードのexport
-    foods.py          # 料理・Combat Statusカード
-    summons.py        # Summon生成カード・ヒルチャール召喚物
-    talents.py        # 天賦カード・装備Status
-players/
-  human.py
-  cpu.py
-tests/
-  test_character_definitions.py
-  test_diluc_effects.py
-  test_effect_api.py
-  test_energy.py
-  test_events.py
-  test_kaeya.py
-  test_xiangling.py
-  test_content_cards.py
-  test_summon_card.py
-  test_abyss_call.py
-  test_talent_equipment.py
-  # その他各ルール・状態・反応・イベントのテスト
-```
-
-## 今後の実装方針
-
-### 短期
-
-1. 実際のキャラクター固有効果をDefinition方式で追加
-2. Character Status / Combat Status / Summonへのイベント委譲を拡張
-3. 装備カード・イベントカード・支援カードを追加
-4. 正式な七聖召喚ルールへの対応範囲を拡張
-
-### 中期
-
-- 装備カード・イベントカード・支援カード
-- 武器・聖遺物・天賦などの装備状態
-- より正式な七聖召喚ルールへの対応
-- 手動対戦UI
+1. 武器カードの種類を増やす
+2. 聖遺物カード基盤を追加する
+3. 各カード・キャラクターのルール実装範囲を拡張する
+4. 合法手・状態評価を強化する
+5. CPUの探索・戦略選択を強化する
+6. 多様なデッキへの対応を進める
+7. GUIを実装する

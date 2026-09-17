@@ -25,6 +25,13 @@ class EquipmentStatusDefinition(StatusDefinition):
     equipment_slot = ""
 
 
+class WeaponEquipmentStatusDefinition(EquipmentStatusDefinition):
+    """武器装備状態の定義。"""
+
+    equipment_slot = "weapon"
+    weapon_type = ""
+
+
 class StatusInstance:
     """ゲーム中に存在する1つのStatusDefinitionの実体。"""
 
