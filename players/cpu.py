@@ -1,10 +1,12 @@
 from engine.actions import Action, ActionType
 from engine.dice import DiceType
+from engine.evaluation import evaluate_state
+from engine.simulation import simulate_action
 from engine.state import GamePhase
 
 
 class CpuPlayer:
-    """合法手一覧から行動を選択するヒューリスティックCPU。"""
+    """合法手をシミュレーションし、状態評価で行動を選択するCPU。"""
 
     LOW_HP_THRESHOLD = 3
 
@@ -17,9 +19,6 @@ class CpuPlayer:
         if game.state.phase is GamePhase.ROLL:
             return self._choose_reroll(game, player_id, legal_actions)
 
-        def find(action_type):
-            return next((action for action in legal_actions if action.action_type is action_type), None)
-
         switch_actions = [
             action for action in legal_actions
             if action.action_type is ActionType.SWITCH_CHARACTER
@@ -29,24 +28,26 @@ class CpuPlayer:
         if player.requires_switch and switch_actions:
             return self._best_switch_action(player, switch_actions)
 
-        burst = find(ActionType.ELEMENTAL_BURST)
+        burst = next(
+            (action for action in legal_actions if action.action_type is ActionType.ELEMENTAL_BURST),
+            None,
+        )
         if burst is not None:
             return burst
 
         if player.active_character.hp <= self.LOW_HP_THRESHOLD and switch_actions:
             return self._best_switch_action(player, switch_actions)
 
-        skill = find(ActionType.ELEMENTAL_SKILL)
-        if skill is not None:
-            return skill
-        attack = find(ActionType.NORMAL_ATTACK)
-        if attack is not None:
-            return attack
+        return max(
+            legal_actions,
+            key=lambda action: self._evaluate_action(game, player_id, action),
+        )
 
-        tuning = find(ActionType.ELEMENTAL_TUNING)
-        if tuning is not None:
-            return tuning
-        return find(ActionType.END_ROUND) or legal_actions[0]
+    @staticmethod
+    def _evaluate_action(game, player_id: int, action: Action) -> float:
+        """Actionを仮想実行し、結果状態をCPU視点で評価する。"""
+        simulated_game = simulate_action(game, action)
+        return evaluate_state(simulated_game.state, player_id)
 
     @staticmethod
     def _choose_reroll(game, player_id: int, legal_actions) -> Action:
