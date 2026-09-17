@@ -39,37 +39,9 @@
 
 固定情報と固有行動を `CharacterDefinition` に分離し、`CharacterState` はHP・Energy・元素付着・Statusなどの可変状態を保持します。武器種 `weapon_type` は `sword` / `claymore` / `polearm` / `bow` / `catalyst` を想定しています。
 
-```text
-CharacterDefinition
-  ├─ character_id / name / element
-  ├─ max_hp / max_energy / weapon_type
-  ├─ normal_attack()
-  ├─ elemental_skill()
-  └─ elemental_burst()
-
-CharacterState
-  ├─ definition
-  ├─ hp / energy
-  ├─ elemental_aura
-  └─ statuses
-```
-
-現在の具体的キャラクターはディルック、香菱、ガイアです。
-
 ## カードDefinition
 
 カードの固定情報と効果を `CardDefinition` に分離し、`Game` は `CardRegistry` からカード定義を解決します。カード固有処理は `content/cards/` に分離しています。
-
-```text
-CardDefinition
-  ├─ card_id / name / cost
-  ├─ target_type
-  ├─ get_cost()
-  ├─ get_legal_targets()
-  ├─ is_target_legal()
-  ├─ can_play()
-  └─ play()
-```
 
 `CardTargetType` は `NONE` / `ACTIVE_CHARACTER` / `ANY_ALLY_CHARACTER` を持ち、`Game.get_legal_actions()` と `Game.is_action_legal()` が同じTarget定義を利用します。
 
@@ -77,14 +49,9 @@ CardDefinition
 
 ## 状態効果・イベント
 
-持続効果は以下に分離されています。
+持続効果は Character Status、Combat Status、Summon、Equipment Status に分離されています。各状態は `Definition` と `Instance` に分離されています。
 
-- **Character Status**: キャラクター単位の状態
-- **Combat Status**: プレイヤー単位の状態
-- **Summon**: プレイヤー単位の召喚物
-- **Equipment Status**: キャラクターに装備される状態
-
-各状態は `Definition` と `Instance` に分離されています。イベントには `NormalAttackEvent`、`ElementalSkillEvent`、`ElementalBurstEvent`、`CharacterSwitchEvent`、`DamageEvent`、`EnergyEvent`、`RoundEndEvent`、`CardActionEvent` があります。
+主なイベントは `NormalAttackEvent`、`ElementalSkillEvent`、`ElementalBurstEvent`、`CharacterSwitchEvent`、`DamageEvent`、`EnergyEvent`、`RoundEndEvent`、`CardActionEvent` です。
 
 ## 元素反応
 
@@ -121,7 +88,7 @@ CardDefinition
 - ACTIONフェーズの行動権
 - 勝敗・終局状態
 
-終局時は通常のヒューリスティック評価より勝敗を優先し、勝利/敗北を大きな固定値として返します。また、仮想状態を評価するため、評価関数自身はゲーム状態を変更しません。
+終局時は通常のヒューリスティック評価より勝敗を優先し、勝利/敗北を大きな固定値として返します。また、評価関数自身はゲーム状態を変更しません。
 
 ```text
 Game
@@ -140,11 +107,9 @@ Game
        評価値(float)
 ```
 
-この構造を次段階のCPU探索・Action選択へ接続します。
-
 ## CPU
 
-現在のCPUはヒューリスティック方式で合法手を利用して行動します。状態評価とシミュレーション基盤が追加されたため、今後は複数手先を考慮する探索方式へ拡張します。
+現在のCPUはヒューリスティック方式で合法手を利用して行動します。状態評価とシミュレーション基盤を追加済みで、次はこれらを複数手先を考慮する探索方式へ接続します。
 
 ## ラウンド進行
 
@@ -161,7 +126,7 @@ python -m pytest
 
 状態コピー・シミュレーション、カードTarget、装備、元素反応、イベント、合法手生成、CPUなどを含むテストを実施しています。
 
-現在のGitHub Actionsでは状態評価実装のテストとして **258 passed** を確認しています。ユーザー環境の最新テスト結果は `249 passed` で、状態評価テスト追加後に9件増加しています。
+GitHub Actionsで **259 passed** を確認しています。
 
 ## 今後の予定
 
