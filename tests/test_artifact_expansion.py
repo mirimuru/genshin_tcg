@@ -7,20 +7,20 @@ def test_instructors_cap_has_artifact_slot_and_cost():
     assert INSTRUCTORS_CAP.cost == {DiceType.ANY: 2}
 
 
-def test_artifact_registry_entry_is_exported():
-    from content.cards import artifacts
+def test_instructors_cap_is_exported_from_content_cards():
+    from content.cards import INSTRUCTORS_CAP as exported
 
-    assert artifacts.INSTRUCTORS_CAP.card_id == "instructors_cap"
+    assert exported is INSTRUCTORS_CAP
 
 
 def test_artifact_can_be_equipped_without_replacing_weapon_or_talent():
     from content.characters import Diluc
     from content.cards.talents import COLD_BLOODED_STRIKE
-    from content.cards.weapons import WOLF_GRAVESTONE
+    from content.cards.weapons import TRAVELER_HANDY_SWORD
     from engine.state import CharacterState
 
     character = CharacterState(Diluc)
-    character.add_equipment(WOLF_GRAVESTONE.create_status())
+    character.add_equipment(TRAVELER_HANDY_SWORD.create_status())
     character.add_equipment(COLD_BLOODED_STRIKE.create_status())
     character.add_equipment(INSTRUCTORS_CAP.create_status())
 
