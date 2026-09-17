@@ -17,13 +17,18 @@ def test_artifact_can_be_equipped_without_replacing_weapon_or_talent():
     from content.characters.kaeya import KAEYA
     from content.cards.talents import COLD_BLOODED_STRIKE
     from content.cards.weapons import TRAVELER_HANDY_SWORD
+    from engine.statuses import EquipmentStatusDefinition
 
     character = KAEYA.create_state()
     character.add_equipment(TRAVELER_HANDY_SWORD.create_status())
     character.add_equipment(COLD_BLOODED_STRIKE.create_status())
     character.add_equipment(INSTRUCTORS_CAP.create_status())
 
-    slots = {status.definition.equipment_slot for status in character.statuses}
+    slots = {
+        status.definition.equipment_slot
+        for status in character.statuses
+        if isinstance(status.definition, EquipmentStatusDefinition)
+    }
     assert slots == {"weapon", "talent", "artifact"}
 
 
