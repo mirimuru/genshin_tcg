@@ -1,20 +1,23 @@
 from engine.cards import CardDefinition
+from engine.dice import DiceType
 
 
 class SweetMadame(CardDefinition):
-    name = "甘雨ではなく、甘酔ではなく、甘い料理"
-    cost = {
-        "OMNI": 1
-    }
+    """モンド風ハッシュドポテト。出場キャラを1回復する。"""
 
-    def can_play(self, game, player_id):
+    card_id = "sweet_madame"
+    name = "モンド風ハッシュドポテト"
+    cost = {DiceType.ANY: 1}
+    is_fast_action = True
+
+    def can_play(self, game, player_id, target=None):
         player = game.state.players[player_id]
         character = player.active_character
-
         return character.alive and character.hp < character.max_hp
 
-    def play(self, game, player_id):
-        player = game.state.players[player_id]
-        character = player.active_character
+    def play(self, game, player_id, target=None):
+        character = game.state.players[player_id].active_character
+        character.heal(1)
 
-        character.hp = min(character.max_hp, character.hp + 1)
+
+SWEET_MADAME = SweetMadame()
