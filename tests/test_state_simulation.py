@@ -23,7 +23,7 @@ def test_game_state_copy_is_independent():
 
     assert game.state.players[0].characters[0].hp == game.state.players[0].characters[0].max_hp
     assert game.state.players[0].dice.count(DiceType.PYRO) == 0
-    assert copied.state if False else copied.round_number == 99
+    assert copied.round_number == 99
     assert game.state.round_number == 1
     assert copied is not game.state
     assert copied.players[0] is not game.state.players[0]
