@@ -1,11 +1,11 @@
 import pytest
 
+from content.cards.weapons import TRAVELERS_HANDY_SWORD, TravelersHandySwordStatus
 from engine.cards import WeaponCardDefinition
 from engine.dice import DicePool, DiceType
 from engine.game import Game
 from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
 from engine.statuses import EquipmentStatusDefinition, StatusInstance, WeaponEquipmentStatusDefinition
-from content.cards.weapons import TRAVELERS_HANDY_SWORD, TravelersHandySwordStatus
 
 
 def make_game():
@@ -73,7 +73,7 @@ def test_equipping_weapon_replaces_previous_weapon_but_keeps_talent():
     assert character.has_status("sword_b")
 
 
-def test_travelers_handy_sword_increases_only_normal_attack_damage():
+def test_travelers_handy_sword_increases_character_damage():
     game = make_game()
     game.state.players[0].active_character.definition.weapon_type = "sword"
     game.state.players[0].active_character.add_equipment(StatusInstance(TravelersHandySwordStatus))
@@ -82,7 +82,7 @@ def test_travelers_handy_sword_increases_only_normal_attack_damage():
     assert game.state.players[1].active_character.hp == 7
 
     game.elemental_skill(0)
-    assert game.state.players[1].active_character.hp == 4
+    assert game.state.players[1].active_character.hp == 3
 
 
 def test_weapon_card_rejects_invalid_weapon_type():
