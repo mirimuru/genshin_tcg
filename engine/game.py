@@ -277,6 +277,14 @@ class Game:
         actions.append(Action(player_id, ActionType.END_ROUND))
         return actions
 
+    def is_action_legal(self, action: Action) -> bool:
+        """現在のゲーム状態でActionが合法手一覧に含まれるかを判定する。"""
+        if not isinstance(action, Action):
+            return False
+        if action.player_id not in (0, 1):
+            return False
+        return action in self.get_legal_actions(action.player_id)
+
     def execute_action(self, action: Action) -> None:
         if not isinstance(action, Action):
             raise TypeError("action must be Action")
@@ -287,6 +295,8 @@ class Game:
             raise ValueError("ゲーム終了後は行動できません")
         if player_id != self.state.current_player:
             raise ValueError("現在のプレイヤーではありません")
+        if not self.is_action_legal(action):
+            raise ValueError("合法なActionではありません")
         player = self.state.players[player_id]
         if self.state.phase is GamePhase.ROLL:
             if action.action_type is not ActionType.REROLL_DICE:
