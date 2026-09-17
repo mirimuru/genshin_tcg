@@ -13,6 +13,11 @@ from content.cards.summons import (
     HilichurlHydro,
     HilichurlPyro,
 )
+from content.cards.talents import (
+    COLD_BLOODED_STRIKE,
+    ColdBloodedStrike,
+    ColdBloodedStrikeStatus,
+)
 
 __all__ = [
     "JUEYUN_GUOBA",
@@ -26,4 +31,7 @@ __all__ = [
     "HilichurlElectro",
     "HilichurlHydro",
     "HilichurlPyro",
+    "COLD_BLOODED_STRIKE",
+    "ColdBloodedStrike",
+    "ColdBloodedStrikeStatus",
 ]
