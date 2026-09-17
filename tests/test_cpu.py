@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from engine.actions import Action, ActionType
 from engine.dice import DicePool
 from engine.game import Game
@@ -76,3 +78,32 @@ def test_cpu_prefers_healthiest_switch_target():
 
     assert action.action_type is ActionType.SWITCH_CHARACTER
     assert action.target == 2
+
+
+def test_cpu_uses_simulation_and_evaluation_to_choose_action(monkeypatch):
+    game = make_game()
+    cpu = CpuPlayer()
+    skill = Action(0, ActionType.ELEMENTAL_SKILL)
+    attack = Action(0, ActionType.NORMAL_ATTACK)
+    end_round = Action(0, ActionType.END_ROUND)
+    legal_actions = [skill, attack, end_round]
+    simulated_actions = []
+
+    def fake_simulate_action(current_game, action):
+        simulated_actions.append(action)
+        return SimpleNamespace(state=SimpleNamespace())
+
+    def fake_evaluate_state(_state, _player_id):
+        return {
+            skill: 10.0,
+            attack: 20.0,
+            end_round: -5.0,
+        }[simulated_actions[-1]]
+
+    monkeypatch.setattr("players.cpu.simulate_action", fake_simulate_action)
+    monkeypatch.setattr("players.cpu.evaluate_state", fake_evaluate_state)
+
+    action = cpu.choose_action(game, 0, legal_actions=legal_actions)
+
+    assert action == attack
+    assert simulated_actions == legal_actions
