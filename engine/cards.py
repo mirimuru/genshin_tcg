@@ -3,7 +3,7 @@ from collections.abc import Mapping, Sequence
 
 from engine.dice import DiceType
 from engine.state import Element
-from engine.statuses import WeaponEquipmentStatusDefinition
+from engine.statuses import StatusInstance, WeaponEquipmentStatusDefinition
 
 
 class CardDefinition(ABC):
