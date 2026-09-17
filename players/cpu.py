@@ -9,6 +9,15 @@ class CpuPlayer:
     """合法手をシミュレーションし、状態評価で行動を選択するCPU。"""
 
     LOW_HP_THRESHOLD = 3
+    ACTION_TIE_BREAK = {
+        ActionType.ELEMENTAL_BURST: 4,
+        ActionType.ELEMENTAL_SKILL: 3,
+        ActionType.NORMAL_ATTACK: 2,
+        ActionType.PLAY_CARD: 2,
+        ActionType.SWITCH_CHARACTER: 1,
+        ActionType.ELEMENTAL_TUNING: 0,
+        ActionType.END_ROUND: -1,
+    }
 
     def choose_action(self, game, player_id: int, legal_actions=None) -> Action:
         if legal_actions is None:
@@ -40,7 +49,10 @@ class CpuPlayer:
 
         return max(
             legal_actions,
-            key=lambda action: self._evaluate_action(game, player_id, action),
+            key=lambda action: (
+                self._evaluate_action(game, player_id, action),
+                self.ACTION_TIE_BREAK.get(action.action_type, 0),
+            ),
         )
 
     @staticmethod
@@ -50,7 +62,7 @@ class CpuPlayer:
         return evaluate_state(simulated_game.state, player_id)
 
     @staticmethod
-    def _choose_reroll(game, player_id: int, legal_actions) -> Action:
+    def _choose_reroll(game, player_id, legal_actions) -> Action:
         player = game.state.players[player_id]
         target_dice = game._element_to_dice_type(player.active_character.element)
 
