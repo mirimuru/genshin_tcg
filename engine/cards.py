@@ -8,8 +8,10 @@ from engine.statuses import ArtifactEquipmentStatusDefinition, StatusInstance, W
 
 
 class CardTargetType(Enum):
-    """カードが要求するキャラクター対象の種類。"""
+    """カードが要求するTargetの種類。"""
 
+    # 既存カードとの後方互換用。明示的なTarget制約をまだ宣言していないカード。
+    UNSPECIFIED = "unspecified"
     NONE = "none"
     ACTIVE_CHARACTER = "active_character"
     ANY_ALLY_CHARACTER = "any_ally_character"
@@ -27,16 +29,17 @@ class CardDefinition(ABC):
     cost: Mapping[DiceType, int] = {}
     # Trueなら使用後も手番を相手へ渡さない。現段階では既定値をFalseとする。
     is_fast_action = False
-    target_type = CardTargetType.NONE
+    # 未指定カードは従来どおり任意のTargetを受け付ける。新規カードはTargetTypeを明示する。
+    target_type = CardTargetType.UNSPECIFIED
 
     def get_cost(self, game, player_id: int) -> Mapping[DiceType, int]:
         """現在の状態に応じたカードコストを返す。"""
         return dict(self.cost)
 
     def get_legal_targets(self, game, player_id: int) -> tuple[object, ...]:
-        """現在の状態でこのカードに指定できる対象候補を返す。"""
+        """現在の状態で、このカードが合法手生成に使用できるTarget候補を返す。"""
         player = game.state.players[player_id]
-        if self.target_type is CardTargetType.NONE:
+        if self.target_type in {CardTargetType.UNSPECIFIED, CardTargetType.NONE}:
             return (None,)
         if self.target_type is CardTargetType.ACTIVE_CHARACTER:
             return (player.active_character_index,) if player.active_character.alive else ()
@@ -45,7 +48,9 @@ class CardDefinition(ABC):
         raise ValueError(f"未対応のカードTarget種別です: {self.target_type}")
 
     def is_target_legal(self, game, player_id: int, target=None) -> bool:
-        """指定されたTargetがこのカードのTargetルールを満たすか判定する。"""
+        """指定されたTargetがカードのTargetルールを満たすか判定する。"""
+        if self.target_type is CardTargetType.UNSPECIFIED:
+            return True
         return target in self.get_legal_targets(game, player_id)
 
     def can_play(self, game, player_id: int, target=None) -> bool:
