@@ -99,6 +99,8 @@ TalentCardDefinition
   ├─ required_character_id
   ├─ can_play()
   └─ create_status()
+       │
+       └─ CharacterState.add_equipment()
 
 WeaponCardDefinition
   ├─ equipment_slot = "weapon"
@@ -240,7 +242,7 @@ python -m pytest
 
 聖遺物カード基盤の実装では、装備スロットの独立性、同一聖遺物スロットの置換、元素反応によるダイス生成、ラウンド内3回制限、装備者以外の反応を無視することをテストしています。
 
-**GitHub Actionsで 233 passed** を確認済みです。
+**テスト項目数は 237 件**です。
 
 主なテスト対象:
 
@@ -268,6 +270,7 @@ python -m pytest
 - 教官の帽子による元素ダイス生成
 - 教官の帽子のラウンド3回制限とラウンド終了時リセット
 - 装備者以外が起こした元素反応では教官の帽子が発動しないこと
+- `content.cards` からの聖遺物カード公開エクスポート
 
 ## 今後の予定
 
