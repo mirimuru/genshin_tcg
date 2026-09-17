@@ -27,6 +27,28 @@ class CardDefinition(ABC):
         raise NotImplementedError
 
 
+class TalentCardDefinition(CardDefinition):
+    """キャラクター固有の天賦カード。"""
+
+    equipment_slot = "talent"
+    required_character_id = ""
+
+    def can_play(self, game, player_id: int, target=None) -> bool:
+        if not super().can_play(game, player_id, target):
+            return False
+        if not self.required_character_id:
+            return False
+        return game.state.players[player_id].active_character.definition.character_id == self.required_character_id
+
+    def create_status(self):
+        """この天賦カードが装備する状態を生成する。"""
+        raise NotImplementedError
+
+    def play(self, game, player_id: int, target=None):
+        character = game.state.players[player_id].active_character
+        character.add_equipment(self.create_status())
+
+
 class CardRegistry:
     """カードIDからカード定義を解決するレジストリ。"""
 
