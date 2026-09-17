@@ -95,13 +95,29 @@ def test_character_replaces_existing_weapon_equipment_only():
 def test_weapon_card_requires_matching_weapon_type():
     game = make_game(SwordCharacter())
     card = TravelerHandySword()
-    game.state.players[0].dice = DicePool({DiceType.OMNI: 2})
+    game.state.players[0].dice = DicePool({DiceType.PYRO: 2})
 
     assert card.can_play(game, 0)
 
     game = make_game(ClaymoreCharacter())
-    game.state.players[0].dice = DicePool({DiceType.OMNI: 2})
+    game.state.players[0].dice = DicePool({DiceType.PYRO: 2})
     assert not card.can_play(game, 0)
+
+
+def test_weapon_card_requires_matching_elemental_dice():
+    game = make_game(SwordCharacter())
+    card = TravelerHandySword()
+    game.state.players[0].dice = DicePool({DiceType.HYDRO: 2})
+
+    assert not card.can_play(game, 0)
+
+
+def test_weapon_card_uses_active_character_element_for_cost():
+    game = make_game(SwordCharacter())
+    card = TravelerHandySword()
+    game.state.players[0].dice = DicePool({DiceType.PYRO: 2})
+
+    assert game.get_action_cost(Action(0, ActionType.PLAY_CARD, card_id="traveler_handy_sword")) == {DiceType.PYRO: 2}
 
 
 def test_weapon_card_equips_status():
@@ -109,7 +125,7 @@ def test_weapon_card_equips_status():
     game.card_registry = CardRegistry([TRAVELER_HANDY_SWORD])
     player = game.state.players[0]
     player.hand = ["traveler_handy_sword"]
-    player.dice = DicePool({DiceType.OMNI: 2})
+    player.dice = DicePool({DiceType.PYRO: 2})
 
     game.execute_action(Action(0, ActionType.PLAY_CARD, card_id="traveler_handy_sword"))
 
