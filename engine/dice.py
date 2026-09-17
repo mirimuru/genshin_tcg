@@ -64,6 +64,15 @@ class DicePool:
     def count(self, dice_type: DiceType) -> int:
         return self._dice[dice_type]
 
+    def add(self, dice_type: DiceType, count: int = 1) -> None:
+        """指定した種類のダイスを追加する。"""
+        if not isinstance(dice_type, DiceType) or dice_type is DiceType.ANY:
+            raise ValueError("追加できるダイス種別が不正です")
+        if count < 0:
+            raise ValueError("dice count must not be negative")
+        self._dice[dice_type] += count
+        self._remove_zeroes()
+
     def as_list(self) -> list[DiceType]:
         """現在のダイスを個々の要素として列挙する。"""
         return [dice_type for dice_type in self.ROLLABLE_DICE_TYPES for _ in range(self._dice[dice_type])]

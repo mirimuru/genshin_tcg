@@ -32,6 +32,12 @@ class WeaponEquipmentStatusDefinition(EquipmentStatusDefinition):
     weapon_type = ""
 
 
+class ArtifactEquipmentStatusDefinition(EquipmentStatusDefinition):
+    """聖遺物装備状態の定義。"""
+
+    equipment_slot = "artifact"
+
+
 class StatusInstance:
     """ゲーム中に存在する1つのStatusDefinitionの実体。"""
 
