@@ -19,6 +19,12 @@ class StatusDefinition(ABC):
         return amount, element
 
 
+class EquipmentStatusDefinition(StatusDefinition):
+    """キャラクターに装備される状態効果の定義。"""
+
+    equipment_slot = ""
+
+
 class StatusInstance:
     """ゲーム中に存在する1つのStatusDefinitionの実体。"""
 
