@@ -24,7 +24,7 @@ def make_game():
 def test_jueyun_guoba_has_stable_definition():
     assert isinstance(JUEYUN_GUOBA, JueyunGuoba)
     assert JUEYUN_GUOBA.card_id == "jueyun_guoba"
-    assert JUEYUN_GUOBA.name == "絶雲の唐辛子"
+    assert JUEYUN_GUOBA.name == "絶雲お焦げ"
     assert JUEYUN_GUOBA.cost == {DiceType.ANY: 1}
 
 
