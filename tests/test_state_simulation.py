@@ -3,6 +3,7 @@ import pytest
 from engine.actions import Action, ActionType
 from engine.dice import DiceType
 from engine.game import Game
+from engine.simulation import copy_game, simulate_action
 from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
 
 
@@ -85,6 +86,3 @@ def test_game_state_copy_keeps_character_definitions_usable():
     clone = copied.players[0].active_character
     assert clone.definition.character_id == original.definition.character_id
     assert clone.definition.name == original.definition.name
-
-
-from engine.simulation import copy_game, copy_state, simulate_action
