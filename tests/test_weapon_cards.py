@@ -1,5 +1,6 @@
 from engine.actions import Action, ActionType
 from engine.cards import CardDefinition, CardRegistry
+from engine.characters import CharacterDefinition as PublicCharacterDefinition
 from engine.dice import DicePool, DiceType
 from engine.game import Game
 from engine.state import CharacterDefinition, CharacterState, Element, GamePhase, GameState, PlayerState
@@ -7,14 +8,14 @@ from engine.statuses import EquipmentStatusDefinition, StatusInstance
 from content.cards.weapons import TravelerHandySword, TRAVELER_HANDY_SWORD, TravelerHandySwordStatus
 
 
-class TestSwordCharacter(CharacterDefinition):
+class SwordCharacter(PublicCharacterDefinition):
     character_id = "test_sword_character"
     name = "テスト片手剣キャラクター"
     element = Element.PYRO
     weapon_type = "sword"
 
 
-class TestClaymoreCharacter(CharacterDefinition):
+class ClaymoreCharacter(PublicCharacterDefinition):
     character_id = "test_claymore_character"
     name = "テスト両手剣キャラクター"
     element = Element.PYRO
@@ -45,7 +46,7 @@ class TestCard(CardDefinition):
 
 
 def make_game(character_definition=None):
-    character_definition = character_definition or TestSwordCharacter()
+    character_definition = character_definition or SwordCharacter()
     players = [
         PlayerState(0, [character_definition.create_state(), CharacterState("B", Element.HYDRO), CharacterState("C", Element.CRYO)]),
         PlayerState(1, [CharacterState("X", Element.HYDRO), CharacterState("Y", Element.PYRO), CharacterState("Z", Element.CRYO)]),
@@ -59,7 +60,7 @@ def make_game(character_definition=None):
 
 
 def test_character_definition_has_optional_weapon_type():
-    character = TestSwordCharacter()
+    character = SwordCharacter()
     assert character.weapon_type == "sword"
     assert CharacterDefinition("legacy", "旧キャラ", Element.PYRO).weapon_type is None
 
@@ -73,7 +74,7 @@ def test_weapon_status_uses_weapon_equipment_slot():
 
 
 def test_character_replaces_existing_weapon_equipment_only():
-    character = TestSwordCharacter().create_state()
+    character = SwordCharacter().create_state()
     first = StatusInstance(TestWeaponStatus)
     second = StatusInstance(TestOtherWeaponStatus)
     talent = StatusInstance(type("TestTalentStatus", (EquipmentStatusDefinition,), {
@@ -92,19 +93,19 @@ def test_character_replaces_existing_weapon_equipment_only():
 
 
 def test_weapon_card_requires_matching_weapon_type():
-    game = make_game(TestSwordCharacter())
+    game = make_game(SwordCharacter())
     card = TravelerHandySword()
     game.state.players[0].dice = DicePool({DiceType.OMNI: 2})
 
     assert card.can_play(game, 0)
 
-    game = make_game(TestClaymoreCharacter())
+    game = make_game(ClaymoreCharacter())
     game.state.players[0].dice = DicePool({DiceType.OMNI: 2})
     assert not card.can_play(game, 0)
 
 
 def test_weapon_card_equips_status():
-    game = make_game(TestSwordCharacter())
+    game = make_game(SwordCharacter())
     game.card_registry = CardRegistry([TRAVELER_HANDY_SWORD])
     player = game.state.players[0]
     player.hand = ["traveler_handy_sword"]
@@ -120,7 +121,7 @@ def test_weapon_card_equips_status():
 
 
 def test_traveler_handy_sword_adds_one_damage_to_normal_attack():
-    game = make_game(TestSwordCharacter())
+    game = make_game(SwordCharacter())
     player = game.state.players[0]
     player.active_character.add_equipment(StatusInstance(TravelerHandySwordStatus))
     opponent = game.state.players[1].active_character
@@ -131,7 +132,7 @@ def test_traveler_handy_sword_adds_one_damage_to_normal_attack():
 
 
 def test_traveler_handy_sword_does_not_modify_elemental_skill():
-    game = make_game(TestSwordCharacter())
+    game = make_game(SwordCharacter())
     player = game.state.players[0]
     player.active_character.add_equipment(StatusInstance(TravelerHandySwordStatus))
     opponent = game.state.players[1].active_character
