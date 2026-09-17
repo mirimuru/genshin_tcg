@@ -5,10 +5,10 @@ from engine.statuses import StatusInstance, WeaponEquipmentStatusDefinition
 
 
 class TravelerHandySwordStatus(WeaponEquipmentStatusDefinition):
-    """旅人の便利な剣。装備キャラクターの次の通常攻撃を+1する準備状態を持つ。"""
+    """旅道の剣。装備キャラクターの与えるダメージを+1する。"""
 
     status_id = "traveler_handy_sword"
-    name = "旅人の便利な剣"
+    name = "旅道の剣"
     equipment_slot = "weapon"
     weapon_type = "sword"
 
@@ -28,10 +28,10 @@ class TravelerHandySwordStatus(WeaponEquipmentStatusDefinition):
 
 
 class TravelerHandySword(WeaponCardDefinition):
-    """片手剣の武器カード。"""
+    """片手剣の武器カード「旅道の剣」。"""
 
     card_id = "traveler_handy_sword"
-    name = "旅人の便利な剣"
+    name = "旅道の剣"
     cost = {DiceType.ANY: 2}
     weapon_type = "sword"
 
