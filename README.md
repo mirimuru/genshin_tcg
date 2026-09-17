@@ -16,74 +16,49 @@
 | キャラクターDefinition / Registry | 実装済み |
 | 具体的キャラクターDefinition | ディルック・香菱・ガイアを実装 |
 | Character Effect API | 実装済み |
-| キャラクター固有ダメージ変更フック | 実装済み |
-| キャラクター固有コスト定義 | 実装済み |
-| HP・エネルギー管理 | 基本実装 |
-| ダメージ処理 | 実装済み |
+| HP・Energy・ダメージ管理 | 実装済み |
 | キャラクター交代 | 実装済み |
-| `Action` / 合法手生成 | 実装済み |
-| `Action` 合法性検証 | 実装済み |
+| Action / 合法手生成・合法性検証 | 実装済み |
 | カードTarget定義・合法Target生成 | 実装済み |
 | CPU対CPUの進行 | 実装済み |
 | ダイス生成・支払い・調和・再ロール | 実装済み |
 | 元素付着・元素反応 | 実装済み（対応範囲は拡張中） |
 | Character Status / Combat Status | 実装済み |
-| Summon | 実装済み |
-| Status / Summon イベントフック | 実装済み |
-| キャラクターアクションイベント | 実装済み（開始/解決） |
-| キャラクター交代イベント | 実装済み（開始/解決） |
-| ダメージイベント | 実装済み（確定前/確定後） |
-| エネルギー変更イベント | 実装済み（変更前/変更後） |
-| ラウンド終了イベント | 実装済み |
-| カード定義・Registry | 基盤実装済み |
-| カードアクションイベント | 実装済み（使用開始/解決後） |
-| 食事カード | 実装済み |
-| Summon生成カード | 実装済み |
-| 装備状態 / 装備スロット | 実装済み |
-| 天賦カード | ガイア「冷血の剣」を実装 |
-| 武器カード基盤 | 実装済み |
-| 武器カード参照実装 | 片手剣「旅道の剣」を実装 |
-| 聖遺物カード基盤 | 実装済み |
+| Summon / イベントフック | 実装済み |
+| キャラクター・交代・ダメージ・Energy・ラウンド・カードイベント | 実装済み |
+| 食事・Summon生成カード | 実装済み |
+| 天賦・武器・聖遺物の装備基盤 | 実装済み |
+| 武器カード参照実装 | 「旅道の剣」を実装 |
 | 聖遺物カード参照実装 | 「教官の帽子」を実装 |
+| ゲーム状態コピー | 実装済み |
+| ゲーム状態シミュレーション | 実装済み |
+| ゲーム状態評価 | 実装済み |
 | GUI・対戦画面 | 未実装 |
 
 ## キャラクターDefinition
 
-キャラクターの固定情報と固有行動を `CharacterDefinition` に分離し、`CharacterState` はHP・Energy・元素付着・Statusなどの可変状態を保持します。
-
-`CharacterDefinition` には武器種 `weapon_type` も保持できます。現在は `sword` / `claymore` / `polearm` / `bow` / `catalyst` を想定した文字列値を使用し、既存キャラクターとの後方互換性のため未指定も許容します。
+固定情報と固有行動を `CharacterDefinition` に分離し、`CharacterState` はHP・Energy・元素付着・Statusなどの可変状態を保持します。武器種 `weapon_type` は `sword` / `claymore` / `polearm` / `bow` / `catalyst` を想定しています。
 
 ```text
 CharacterDefinition
   ├─ character_id / name / element
-  ├─ max_hp / max_energy
-  ├─ weapon_type
+  ├─ max_hp / max_energy / weapon_type
   ├─ normal_attack()
   ├─ elemental_skill()
   └─ elemental_burst()
-       │
-       └─ Character Status / Combat Status / Summon / Equipment
 
 CharacterState
   ├─ definition
   ├─ hp / energy
   ├─ elemental_aura
   └─ statuses
-
-CharacterRegistry
-  └─ character_id -> CharacterDefinition
-
-content/characters/
-  ├─ diluc.py       # claymore
-  ├─ kaeya.py       # sword
-  └─ xiangling.py   # polearm
 ```
+
+現在の具体的キャラクターはディルック、香菱、ガイアです。
 
 ## カードDefinition
 
-カードの固定情報と固有効果を `CardDefinition` に分離し、`Game` はカードIDから `CardRegistry` を通して定義を解決します。カード固有処理は `content/cards/` の個別ファイルへ配置します。
-
-`CardDefinition.get_cost()` を通して、現在のゲーム状態からコストを解決できる設計にしています。通常カードは静的な `cost` を返し、武器カードはアクティブキャラクターの元素に応じて「同色」コストを返します。
+カードの固定情報と効果を `CardDefinition` に分離し、`Game` は `CardRegistry` からカード定義を解決します。カード固有処理は `content/cards/` に分離しています。
 
 ```text
 CardDefinition
@@ -94,166 +69,89 @@ CardDefinition
   ├─ is_target_legal()
   ├─ can_play()
   └─ play()
-       │
-       └─ CardActionEvent
-            ├─ 使用開始（resolved=False）
-            └─ 効果解決後（resolved=True）
-
-CardTargetType
-  ├─ NONE
-  ├─ ACTIVE_CHARACTER
-  └─ ANY_ALLY_CHARACTER
 ```
 
-`CardTargetType` と `get_legal_targets()` をカード定義側に持たせることで、`Game` にカードIDごとのTarget条件を追加せずに合法手を生成できます。既存カードはTargetを明示しないことで従来の `target=None` との互換性を維持し、今後Targetを必要とするカードだけが `target_type` を宣言します。
+`CardTargetType` は `NONE` / `ACTIVE_CHARACTER` / `ANY_ALLY_CHARACTER` を持ち、`Game.get_legal_actions()` と `Game.is_action_legal()` が同じTarget定義を利用します。
 
-`Game.get_legal_actions()` はカードのTarget候補ごとに `PLAY_CARD` Actionを生成し、`Game.is_action_legal()` / `Game._execute_card()` も同じTargetルールを検証します。これによりCPUがTarget付きカードActionを直接扱える基盤になっています。
+天賦・武器・聖遺物は `EquipmentStatusDefinition` を基盤とし、`talent` / `weapon` / `artifact` の装備スロットを独立して管理します。同一スロットの装備は置き換えられます。
 
-TalentCardDefinition
-  ├─ equipment_slot = "talent"
-  ├─ required_character_id
-  ├─ can_play()
-  └─ create_status()
-       │
-       └─ CharacterState.add_equipment()
+## 状態効果・イベント
 
-WeaponCardDefinition
-  ├─ equipment_slot = "weapon"
-  ├─ weapon_type
-  ├─ get_cost()       # アクティブキャラクターの元素に応じた同色コスト
-  ├─ can_play()       # アクティブキャラクターの武器種を検証
-  └─ create_status()  # WeaponEquipmentStatusDefinitionを生成
-       │
-       └─ CharacterState.add_equipment()
+持続効果は以下に分離されています。
 
-ArtifactCardDefinition
-  ├─ equipment_slot = "artifact"
-  ├─ can_play()       # CardDefinitionのダイス支払い判定を利用
-  └─ create_status()  # ArtifactEquipmentStatusDefinitionを生成
-       │
-       └─ CharacterState.add_equipment()
+- **Character Status**: キャラクター単位の状態
+- **Combat Status**: プレイヤー単位の状態
+- **Summon**: プレイヤー単位の召喚物
+- **Equipment Status**: キャラクターに装備される状態
 
-CardRegistry
-  └─ card_id -> CardDefinition
+各状態は `Definition` と `Instance` に分離されています。イベントには `NormalAttackEvent`、`ElementalSkillEvent`、`ElementalBurstEvent`、`CharacterSwitchEvent`、`DamageEvent`、`EnergyEvent`、`RoundEndEvent`、`CardActionEvent` があります。
 
-content/cards/
-  ├─ artifacts.py
-  ├─ foods.py
-  ├─ summons.py
-  ├─ talents.py
-  └─ weapons.py
+## 元素反応
+
+現在、蒸発、溶解、過負荷、感電、凍結、超電導、拡散、結晶化、燃焼、開花、激化を実装しています。
+
+## 状態コピー・シミュレーション
+
+`GameState.copy()` はゲーム中の可変状態を独立したオブジェクトとして複製します。
+
+`engine/simulation.py` には以下のヘルパーがあります。
+
+- `copy_state(state)`
+- `copy_game(game)`
+- `simulate_action(game, action)`
+
+`simulate_action()` は元の `Game` を変更せず、コピーしたゲームへActionを実行します。CPU探索で「このActionを実行したらどうなるか」を安全に評価するための基盤です。
+
+## ゲーム状態評価
+
+`engine/evaluation.py` の `evaluate_state(game, player_id)` は、ゲーム状態を指定プレイヤー視点の `float` に変換します。正の値は指定プレイヤー側、負の値は相手側に有利な状態を表します。
+
+現在の評価対象:
+
+- キャラクターHP
+- 生存キャラクター数
+- Energy
+- Character Status
+- Summon
+- 手札枚数
+- ダイス数
+- Shield
+- 元素付着
+- ラウンド終了状態
+- ACTIONフェーズの行動権
+- 勝敗・終局状態
+
+終局時は通常のヒューリスティック評価より勝敗を優先し、勝利/敗北を大きな固定値として返します。また、仮想状態を評価するため、評価関数自身はゲーム状態を変更しません。
+
+```text
+Game
+  │
+  ├─ get_legal_actions()
+  │
+  └─ simulate_action()
+          │
+          ▼
+      仮想GameState
+          │
+          ▼
+      evaluate_state()
+          │
+          ▼
+       評価値(float)
 ```
 
-## 装備システム
-
-装備は `EquipmentStatusDefinition` を共通基盤として、キャラクターの `statuses` に保持します。
-
-`CharacterState.add_equipment()` は `equipment_slot` が同じ装備を置き換えます。そのため、天賦・武器・聖遺物は独立したスロットとして同時に装備でき、同じスロットの装備を付け替えた場合は以前の装備だけが置き換わります。
-
-武器専用には `WeaponEquipmentStatusDefinition` を追加し、`weapon_type` を持たせています。`WeaponCardDefinition` はカード側の武器種と生成する装備Statusの武器種が一致することも検証します。
-
-聖遺物専用には `ArtifactEquipmentStatusDefinition` を追加し、`equipment_slot = "artifact"` を共通化しています。これにより今後の聖遺物カードを個別の `StatusDefinition` として追加できます。
-
-### 武器カード参照実装
-
-`content/cards/weapons.py` に片手剣「旅道の剣」を参照実装しています。現在の七聖召喚カード仕様では、2個の同色元素サイコロをコストとし、片手剣キャラクターのみ装備でき、装備キャラクターの与えるダメージを+1します。
-
-- `card_id = traveler_handy_sword`
-- `weapon_type = sword`
-- 武器スロットへ装備
-- コストはアクティブキャラクターの元素に対応する同色2ダイス
-- 装備キャラクターの通常攻撃に+1ダメージ
-- 元素スキルなど通常攻撃以外には適用しない
-
-通常攻撃への効果は `NormalAttackEvent` の開始イベントで状態を有効化し、既存の `modify_damage()` フックでダメージ確定前に+1します。これにより `Game` 本体へ武器IDごとの条件分岐を追加していません。
-
-### 聖遺物カード参照実装
-
-`content/cards/artifacts.py` に「教官の帽子」を参照実装しています。現在の七聖召喚カード仕様では、無色2個の元素サイコロをコストとし、装備キャラクターが元素反応を起こした後、そのキャラクターの元素タイプに対応する元素サイコロを1個生成します。この効果は1ラウンド最大3回です。
-
-- `card_id = instructors_cap`
-- `equipment_slot = artifact`
-- コストは任意2ダイス
-- 装備キャラクター自身が起こした元素反応のみ対象
-- 装備キャラクターの元素と同じ種類のダイスを1個生成
-- 1ラウンド最大3回
-- `RoundEndEvent` でラウンド内カウンタをリセット
-
-生成ダイスは `DicePool.add()` を通して追加し、既存のダイス支払い・合法手生成とは独立した「ダイス生成」処理として扱っています。
-
-## 現在のコンテンツカード
-
-- `モンド風ハッシュドポテト`: 出場キャラクターを1HP回復。コストは任意1ダイス。
-- `絶雲お焦げ`: 次に使用する通常攻撃のダメージを1増加。
-- `アビスの呼びかけ`: ランダムなヒルチャール召喚物を1体生成。
-- `冷血の剣`: ガイア専用天賦カード。装備時に元素スキルを即時使用し、装備中の元素スキル後にラウンド1回2HP回復。
-- `旅道の剣`: 片手剣武器カード。アクティブキャラクターの元素に対応する同色2ダイスで使用し、装備キャラクターの与えるダメージを+1。
-- `教官の帽子`: 聖遺物カード。元素反応を起こした装備キャラクターに対応する元素ダイスを生成し、1ラウンド最大3回。
-
-## 状態効果のアーキテクチャ
-
-ゲーム中の持続効果は、用途に応じて以下に分離しています。
-
-- **Character Status**: 個々のキャラクターに付与される状態
-- **Combat Status**: プレイヤー側に保持され、交代しても維持される状態
-- **Summon**: プレイヤー側に保持され、ラウンド終了や後続アクションなどのイベントで処理される召喚物
-- **Equipment Status**: Character Statusのイベント基盤を利用しつつ、`equipment_slot` 単位で装備を管理する状態
-  - `weapon`: 武器
-  - `talent`: 天賦
-  - `artifact`: 聖遺物
-
-各状態は `Definition` と `Instance` に分離されています。`StatusInstance` は `data` を保持でき、キャラクター固有の使用回数やラウンド内カウンタにも利用できます。
-
-## イベントシステム
-
-`engine/events.py` にゲームイベントを定義し、`Game._emit_event()` が現在存在するStatus / Summonへイベントを通知します。
-
-現在の主なイベント:
-
-- `NormalAttackEvent`
-- `ElementalSkillEvent`
-- `ElementalBurstEvent`
-- `CharacterSwitchEvent`
-- `DamageEvent`
-- `EnergyEvent`
-- `RoundEndEvent`
-- `CardActionEvent`
-
-キャラクターアクション、交代、カードイベントには `resolved` フラグがあり、開始通知と解決通知を同じイベント型で扱います。
-
-## 実装済み元素反応
-
-- 蒸発
-- 溶解
-- 過負荷
-- 感電
-- 凍結
-- 超電導
-- 拡散
-- 結晶化
-- 燃焼
-- 開花
-- 激化
-
-## ラウンド進行
-
-1. **ROLLフェーズ**
-   - 各プレイヤーがダイスを取得
-   - 任意のダイスを1回リロール
-2. **ACTIONフェーズ**
-   - 通常攻撃、元素スキル、元素爆発、交代、調和、カードなどを実行
-   - 両プレイヤーがラウンド終了するとラウンド終了イベントを処理
-   - 次ラウンドのROLLフェーズへ移行
+この構造を次段階のCPU探索・Action選択へ接続します。
 
 ## CPU
 
-現在のCPUはヒューリスティック方式です。合法手生成を利用して行動を選択します。
+現在のCPUはヒューリスティック方式で合法手を利用して行動します。状態評価とシミュレーション基盤が追加されたため、今後は複数手先を考慮する探索方式へ拡張します。
 
-## Action合法性検証
+## ラウンド進行
 
-`Game.get_legal_actions()` が生成した合法手を、`Game.is_action_legal()` で現在のゲーム状態に対して検証できます。`Game.execute_action()` も実行前にこの検証を行うため、合法手一覧に存在しないAction（例：通常攻撃へ不正なtargetを付ける、現在の状態で使用できないActionを直接渡す）は実行されません。
-
-この検証は将来のCPU探索で「生成したActionをそのままシミュレーションへ渡せる」ことを保証するための基盤として利用します。
+1. **ROLLフェーズ**: ダイス取得・リロール
+2. **ACTIONフェーズ**: 攻撃、スキル、爆発、交代、調和、カードなどを実行
+3. 両プレイヤーがラウンド終了すると `RoundEndEvent` を処理
+4. 次ラウンドのROLLフェーズへ移行
 
 ## テスト
 
@@ -261,50 +159,17 @@ content/cards/
 python -m pytest
 ```
 
-カードTarget基盤では、Target候補の生成、戦闘不能キャラクターの除外、Targetなしカードの `None` 固定、無効Targetの拒否、`get_legal_actions()` へのTarget付きカードAction生成をテストしています。
+状態コピー・シミュレーション、カードTarget、装備、元素反応、イベント、合法手生成、CPUなどを含むテストを実施しています。
 
-**テスト項目数は 244 件**です。
-
-主なテスト対象:
-
-- 通常攻撃・元素スキル・元素爆発の開始/解決イベント
-- キャラクター交代の開始/解決イベント
-- カード使用の開始/解決イベント
-- Status / Summonのイベント購読
-- DamageEventの変更と実ダメージへの反映
-- EnergyEventの上限・下限適用
-- 元素反応と各反応固有効果
-- 食事カード・Summon生成カード・天賦カード
-- 天賦・武器・聖遺物の装備スロット独立性
-- 天賦装備と同一装備スロットの置換
-- キャラクターの武器種定義
-- 武器装備Statusの生成
-- 武器カードの武器種一致/不一致判定
-- 武器カードの同色コスト判定
-- 武器カードの装備処理
-- 片手剣による通常攻撃ダメージ+1
-- 武器効果が元素スキルへ誤適用されないこと
-- 聖遺物装備Statusのスロット判定
-- 聖遺物カードの装備処理
-- 聖遺物スロットの置換
-- 聖遺物と武器・天賦のスロット独立性
-- 教官の帽子による元素ダイス生成
-- 教官の帽子のラウンド3回制限とラウンド終了時リセット
-- 装備者以外が起こした元素反応では教官の帽子が発動しないこと
-- `content.cards` からの聖遺物カード公開エクスポート
-- 不正なAction targetの拒否
-- `execute_action()` の合法手検証
-- カードTarget候補の生成
-- 戦闘不能キャラクターのTarget除外
-- TargetなしカードのTarget検証
-- Target付きカードActionの合法性検証
+現在のGitHub Actionsでは状態評価実装のテストとして **258 passed** を確認しています。ユーザー環境の最新テスト結果は `249 passed` で、状態評価テスト追加後に9件増加しています。
 
 ## 今後の予定
 
-1. 状態コピー／シミュレーション基盤を実装する
-2. 武器カード・聖遺物カード・Target付きカードの種類を増やす
-3. 各カード・キャラクターのルール実装範囲を拡張する
-4. 合法手・状態評価を強化する
-5. CPUの探索・戦略選択を強化する
-6. 多様なデッキへの対応を進める
-7. GUIを実装する
+1. 状態評価の精度を拡張する
+2. シミュレーションと状態評価をCPUへ接続する
+3. 相手の応答を考慮する探索CPUを実装する
+4. ダイス・ランダム効果を含む探索を強化する
+5. 武器・聖遺物・Target付きカードを増やす
+6. 各カード・キャラクターのルール実装範囲を拡張する
+7. 多様なデッキへの対応を進める
+8. GUIを実装する
