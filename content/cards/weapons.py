@@ -26,6 +26,7 @@ class TravelersHandySword(WeaponCardDefinition):
 
     card_id = "travelers_handy_sword"
     name = "旅道の剣"
+    cost = {DiceType.ANY: 2}
     weapon_type = "sword"
 
     def create_status(self):
