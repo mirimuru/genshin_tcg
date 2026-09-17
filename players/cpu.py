@@ -58,21 +58,32 @@ class CpuPlayer:
 
     @classmethod
     def _evaluate_action(cls, game, player_id, action, depth=1) -> float:
-        """Actionを仮想実行し、相手の最善応答まで含めて評価する。"""
+        """Actionを仮想実行し、相手の最善応答まで含めてCPU視点で評価する。"""
         simulated_game = simulate_action(game, action)
-        if depth <= 1 or simulated_game.state.game_over:
-            return evaluate_state(simulated_game.state, player_id)
+        return cls._minimax(simulated_game, player_id, 1 - player_id, depth - 1)
 
-        opponent_id = 1 - player_id
-        opponent_actions = simulated_game.get_legal_actions(opponent_id)
-        if not opponent_actions:
-            return evaluate_state(simulated_game.state, player_id)
+    @classmethod
+    def _minimax(cls, game, root_player_id, current_player_id, depth) -> float:
+        """指定プレイヤー視点を固定したminimax探索を行う。"""
+        if depth <= 0 or game.state.game_over:
+            return evaluate_state(game.state, root_player_id)
 
-        # 相手は自分にとって最も不利な応答を選ぶ、というminimaxの仮定。
-        return min(
-            cls._evaluate_action(simulated_game, opponent_id, opponent_action, depth - 1)
-            for opponent_action in opponent_actions
+        legal_actions = game.get_legal_actions(current_player_id)
+        if not legal_actions:
+            return evaluate_state(game.state, root_player_id)
+
+        values = (
+            cls._minimax(
+                simulate_action(game, action),
+                root_player_id,
+                1 - current_player_id,
+                depth - 1,
+            )
+            for action in legal_actions
         )
+        if current_player_id == root_player_id:
+            return max(values)
+        return min(values)
 
     @staticmethod
     def _choose_reroll(game, player_id, legal_actions) -> Action:

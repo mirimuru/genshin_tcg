@@ -92,7 +92,7 @@ def test_cpu_uses_simulation_and_evaluation_to_choose_action(monkeypatch):
     def fake_simulate_action(current_game, action):
         simulated_actions.append(action)
         return SimpleNamespace(
-            state=SimpleNamespace(),
+            state=SimpleNamespace(game_over=False),
             get_legal_actions=lambda _player_id: [],
         )
 
@@ -124,19 +124,19 @@ def test_cpu_looks_ahead_to_opponent_response(monkeypatch):
     simulations = []
 
     root_states = {
-        attack: SimpleNamespace(name="attack_state"),
-        skill: SimpleNamespace(name="skill_state"),
+        "normal_attack": SimpleNamespace(name="attack_state", game_over=False),
+        "elemental_skill": SimpleNamespace(name="skill_state", game_over=False),
     }
     response_states = {
-        ("attack_state", opponent_attack): SimpleNamespace(name="attack_after_attack"),
-        ("attack_state", opponent_switch): SimpleNamespace(name="attack_after_switch"),
-        ("skill_state", opponent_end): SimpleNamespace(name="skill_after_end"),
+        ("attack_state", opponent_attack): SimpleNamespace(name="attack_after_attack", game_over=False),
+        ("attack_state", opponent_switch): SimpleNamespace(name="attack_after_switch", game_over=False),
+        ("skill_state", opponent_end): SimpleNamespace(name="skill_after_end", game_over=False),
     }
 
     def fake_simulate_action(current_game, action):
         simulations.append(action)
         if action.player_id == 0:
-            state = root_states[action]
+            state = root_states[action.action_type.value]
             responses = {
                 "attack_state": [opponent_attack, opponent_switch],
                 "skill_state": [opponent_end],
@@ -144,7 +144,10 @@ def test_cpu_looks_ahead_to_opponent_response(monkeypatch):
         else:
             state = response_states[(current_game.state.name, action)]
             responses = []
-        return SimpleNamespace(state=state, get_legal_actions=lambda _player_id, responses=responses: responses)
+        return SimpleNamespace(
+            state=state,
+            get_legal_actions=lambda _player_id, responses=responses: responses,
+        )
 
     scores = {
         "attack_after_attack": 50.0,
