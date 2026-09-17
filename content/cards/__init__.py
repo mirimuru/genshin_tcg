@@ -1,3 +1,8 @@
+from content.cards.artifacts import (
+    INSTRUCTORS_CAP,
+    InstructorsCap,
+    InstructorsCapStatus,
+)
 from content.cards.foods import (
     JUEYUN_GUOBA,
     SWEET_MADAME,
@@ -25,6 +30,9 @@ from content.cards.weapons import (
 )
 
 __all__ = [
+    "INSTRUCTORS_CAP",
+    "InstructorsCap",
+    "InstructorsCapStatus",
     "JUEYUN_GUOBA",
     "SWEET_MADAME",
     "JueyunGuoba",
