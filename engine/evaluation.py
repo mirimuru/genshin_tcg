@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from engine.state import GameState
+from engine.state import GamePhase, GameState
 
 
 # The values are intentionally small and interpretable. Terminal outcomes
@@ -60,6 +60,16 @@ def evaluate_state(game: GameState, player_id: int) -> float:
         raise ValueError("player_id must be 0 or 1")
 
     opponent_id = 1 - player_id
+    player_defeated = game.players[player_id].defeated
+    opponent_defeated = game.players[opponent_id].defeated
+
+    # Derive terminal state directly from the players as well as game_over.
+    # This keeps evaluation correct for hypothetical states that were mutated
+    # directly before being passed to the evaluator.
+    if opponent_defeated and not player_defeated:
+        return WIN_SCORE
+    if player_defeated and not opponent_defeated:
+        return -WIN_SCORE
     if game.game_over:
         if game.winner == player_id:
             return WIN_SCORE
@@ -68,8 +78,9 @@ def evaluate_state(game: GameState, player_id: int) -> float:
         return 0.0
 
     score = _player_heuristic(game, player_id) - _player_heuristic(game, opponent_id)
-    if game.current_player == player_id:
-        score += ACTION_TEMPO_WEIGHT
-    else:
-        score -= ACTION_TEMPO_WEIGHT
+    if game.phase is GamePhase.ACTION:
+        if game.current_player == player_id:
+            score += ACTION_TEMPO_WEIGHT
+        else:
+            score -= ACTION_TEMPO_WEIGHT
     return score
