@@ -23,6 +23,7 @@
 | キャラクター交代 | 実装済み |
 | `Action` / 合法手生成 | 実装済み |
 | `Action` 合法性検証 | 実装済み |
+| カードTarget定義・合法Target生成 | 実装済み |
 | CPU対CPUの進行 | 実装済み |
 | ダイス生成・支払い・調和・再ロール | 実装済み |
 | 元素付着・元素反応 | 実装済み（対応範囲は拡張中） |
@@ -87,13 +88,26 @@ content/characters/
 ```text
 CardDefinition
   ├─ card_id / name / cost
+  ├─ target_type
   ├─ get_cost()
+  ├─ get_legal_targets()
+  ├─ is_target_legal()
   ├─ can_play()
   └─ play()
        │
        └─ CardActionEvent
             ├─ 使用開始（resolved=False）
             └─ 効果解決後（resolved=True）
+
+CardTargetType
+  ├─ NONE
+  ├─ ACTIVE_CHARACTER
+  └─ ANY_ALLY_CHARACTER
+```
+
+`CardTargetType` と `get_legal_targets()` をカード定義側に持たせることで、`Game` にカードIDごとのTarget条件を追加せずに合法手を生成できます。既存カードはTargetを明示しないことで従来の `target=None` との互換性を維持し、今後Targetを必要とするカードだけが `target_type` を宣言します。
+
+`Game.get_legal_actions()` はカードのTarget候補ごとに `PLAY_CARD` Actionを生成し、`Game.is_action_legal()` / `Game._execute_card()` も同じTargetルールを検証します。これによりCPUがTarget付きカードActionを直接扱える基盤になっています。
 
 TalentCardDefinition
   ├─ equipment_slot = "talent"
@@ -155,7 +169,7 @@ content/cards/
 
 ### 聖遺物カード参照実装
 
-`content/cards/artifacts.py` に「教官の帽子」を参照実装しています。現在の七聖召喚カード仕様では、無色2個の元素サイコロをコストとし、装備キャラクターが元素反応を起こした後、そのキャラクターの元素タイプに対応する元素サイコロを1個生成します。この効果は1ラウンド最大3回です。citeturn0search4turn0search2
+`content/cards/artifacts.py` に「教官の帽子」を参照実装しています。現在の七聖召喚カード仕様では、無色2個の元素サイコロをコストとし、装備キャラクターが元素反応を起こした後、そのキャラクターの元素タイプに対応する元素サイコロを1個生成します。この効果は1ラウンド最大3回です。
 
 - `card_id = instructors_cap`
 - `equipment_slot = artifact`
@@ -247,9 +261,9 @@ content/cards/
 python -m pytest
 ```
 
-聖遺物カード基盤の実装では、装備スロットの独立性、同一聖遺物スロットの置換、元素反応によるダイス生成、ラウンド内3回制限、装備者以外の反応を無視することをテストしています。
+カードTarget基盤では、Target候補の生成、戦闘不能キャラクターの除外、Targetなしカードの `None` 固定、無効Targetの拒否、`get_legal_actions()` へのTarget付きカードAction生成をテストしています。
 
-**テスト項目数は 239 件**です。
+**テスト項目数は 244 件**です。
 
 主なテスト対象:
 
@@ -280,12 +294,17 @@ python -m pytest
 - `content.cards` からの聖遺物カード公開エクスポート
 - 不正なAction targetの拒否
 - `execute_action()` の合法手検証
+- カードTarget候補の生成
+- 戦闘不能キャラクターのTarget除外
+- TargetなしカードのTarget検証
+- Target付きカードActionの合法性検証
 
 ## 今後の予定
 
-1. 武器カード・聖遺物カードの種類を増やす
-2. 各カード・キャラクターのルール実装範囲を拡張する
-3. 合法手・状態評価を強化する
-4. CPUの探索・戦略選択を強化する
-5. 多様なデッキへの対応を進める
-6. GUIを実装する
+1. 状態コピー／シミュレーション基盤を実装する
+2. 武器カード・聖遺物カード・Target付きカードの種類を増やす
+3. 各カード・キャラクターのルール実装範囲を拡張する
+4. 合法手・状態評価を強化する
+5. CPUの探索・戦略選択を強化する
+6. 多様なデッキへの対応を進める
+7. GUIを実装する
