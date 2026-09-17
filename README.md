@@ -41,6 +41,8 @@
 | カードアクションイベント | 実装済み（使用開始/解決後） |
 | Combat Statusを生成するコンテンツカード | 絶雲お焦げを実装 |
 | Summonを生成するコンテンツカード | アビスの呼びかけを実装 |
+| 装備状態 / 装備スロット | 基盤実装済み（Character State） |
+| 天賦カード | ガイア「冷血の剣」を実装 |
 | GUI・対戦画面 | 未実装 |
 
 ## キャラクターDefinitionのアーキテクチャ
@@ -93,13 +95,22 @@ CardDefinition
             ├─ 使用開始（resolved=False）
             └─ 効果解決後（resolved=True）
 
+TalentCardDefinition
+  ├─ equipment_slot = "talent"
+  ├─ required_character_id
+  ├─ can_play()       # 対象キャラクターがアクティブか検証
+  └─ create_status()  # 装備Statusを生成
+       │
+       └─ CharacterState.add_equipment()
+
 CardRegistry
   └─ card_id -> CardDefinition
 
 content/cards/
   ├─ __init__.py
   ├─ foods.py
-  └─ summons.py
+  ├─ summons.py
+  └─ talents.py
 ```
 
 現在のコンテンツカードは以下を実装しています。
@@ -107,6 +118,7 @@ content/cards/
 - `モンド風ハッシュドポテト`: 出場キャラクターが生存しておりHPが最大未満の場合に使用でき、1HP回復。コストは任意1ダイス。
 - `絶雲お焦げ`: Combat Statusを生成し、次に使用する通常攻撃のダメージを1増加。
 - `アビスの呼びかけ`: ランダムなヒルチャール召喚物を1体生成。各ヒルチャールはラウンド終了時に対応元素1ダメージを与え、使用可能回数を1消費する。
+- `冷血の剣`: ガイア専用天賦カード。装備時に元素スキルを即時使用し、装備中は元素スキル使用後に1ラウンド1回まで2HP回復する。コストは氷4ダイス。
 
 ## カードから状態効果を生成する流れ
 
@@ -121,8 +133,15 @@ CardDefinition.play()
       ├── Combat Status
       │      └── Damage / CharacterActionEventへ反応
       │
-      └── Summon
-             └── RoundEndEvent / 後続アクションへ反応
+      ├── Summon
+      │      └── RoundEndEvent / 後続アクションへ反応
+      │
+      └── TalentCardDefinition
+             │
+             └── CharacterState.add_equipment()
+                    │
+                    └── EquipmentStatusDefinition
+                           └── CharacterActionEventへ反応
 ```
 
 ### ディルック
@@ -148,6 +167,12 @@ CardDefinition.play()
 
 実装では元素爆発の解決イベントをCharacter Statusが購読して `kaeya_icicle` Combat Statusを生成し、そのCombat Statusが自分の `CharacterSwitchEvent` の解決時に2氷ダメージを与えて使用回数を1消費します。相手側の交代では発動しません。
 
+### ガイア天賦「冷血の剣」
+
+`ColdBloodedStrike` は装備カードのリファレンス実装です。七聖召喚の仕様では、アクティブキャラクターがガイアのときに装備し、装備直後に「霜の噛みつき」を即時使用します。装備中のガイアが元素スキルを使用すると、1ラウンドにつき1回、ガイアを2HP回復します。citeturn0search0turn0search2
+
+実装では `TalentCardDefinition` が対象キャラクター条件を検証し、`CharacterState.add_equipment()` が `talent` スロットへ装備します。装備状態は `EquipmentStatusDefinition` として通常のCharacter Statusと同じイベントパイプラインを購読し、元素スキルの解決イベントから回復を行います。即時使用もカード固有の `play()` から共通の `Game.elemental_skill()` を呼び出して処理します。
+
 ## 状態効果のアーキテクチャ
 
 ゲーム中の持続効果は、用途に応じて3種類に分離しています。
@@ -155,8 +180,11 @@ CardDefinition.play()
 - **Character Status**: 個々のキャラクターに付与される状態
 - **Combat Status**: プレイヤー側に保持され、交代しても維持される状態
 - **Summon**: プレイヤー側に保持され、ラウンド終了や後続アクションなどのイベントで処理される召喚物
+- **Equipment Status**: Character Statusのイベント基盤を利用しつつ、`equipment_slot` 単位で装備を管理する状態
 
 各状態は `Definition` と `Instance` に分離されています。`StatusInstance` は追加の状態データを `data` として保持でき、キャラクター固有の使用回数やラウンド内カウンタにも利用できます。
+
+`CharacterState.add_equipment()` は同じ装備スロットの既存装備を置き換えるため、今後 `talent` に加えて `weapon` や `artifact` を追加できます。
 
 ## イベントシステム
 
@@ -209,7 +237,7 @@ CardDefinition.play()
 python -m pytest
 ```
 
-直近のローカル確認では **208 passed**。その後、アビスの呼びかけとヒルチャール召喚物のテストを4件追加しています。これにより現在の想定テスト数は **212件** です。
+直近のローカル確認では **212 passed**。その後、天賦カード・装備状態について5件のテストを追加しており、今回の実装後の想定テスト数は **217件** です。GitHub Actionsでもpytestを実行しています。
 
 イベント駆動部分では、以下をテストしています。
 
@@ -226,8 +254,9 @@ python -m pytest
 - 絶雲お焦げのCombat Status生成・通常攻撃へのダメージ加算・消費
 - アビスの呼びかけのカード→Summon生成
 - ヒルチャール召喚物のRoundEndEventによる元素ダメージ・使用回数消費
-
-GitHub Actionsでもpytestを実行しています。
+- 天賦カードの装備条件・装備状態生成・即時元素スキル
+- 天賦装備中の元素スキルによる1ラウンド1回の回復
+- 同一装備スロットの装備置換
 
 ## ディレクトリ構成
 
@@ -235,7 +264,7 @@ GitHub Actionsでもpytestを実行しています。
 engine/
   __init__.py         # Gameへの共通Effect API登録
   actions.py
-  cards.py            # CardDefinition / CardRegistry
+  cards.py            # CardDefinition / TalentCardDefinition / CardRegistry
   dice.py
   effect_api.py       # Character / Combat Status / Summon共通API
   effects.py
@@ -243,8 +272,8 @@ engine/
   events.py           # ゲームイベント定義
   game.py
   characters.py       # CharacterDefinition / Registry
-  state.py            # ゲーム状態・キャラクター状態
-  statuses.py
+  state.py            # ゲーム状態・キャラクター状態・装備管理
+  statuses.py         # Status / EquipmentStatus定義
   summons.py
 content/
   characters/
@@ -255,6 +284,7 @@ content/
     __init__.py       # コンテンツカードのexport
     foods.py          # 料理・Combat Statusカード
     summons.py        # Summon生成カード・ヒルチャール召喚物
+    talents.py        # 天賦カード・装備Status
 players/
   human.py
   cpu.py
@@ -269,6 +299,7 @@ tests/
   test_content_cards.py
   test_summon_card.py
   test_abyss_call.py
+  test_talent_equipment.py
   # その他各ルール・状態・反応・イベントのテスト
 ```
 
