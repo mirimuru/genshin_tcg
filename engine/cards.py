@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 
 from engine.dice import DiceType
+from engine.state import Element
 from engine.statuses import StatusInstance, WeaponEquipmentStatusDefinition
 
 
@@ -18,9 +19,13 @@ class CardDefinition(ABC):
     # Trueなら使用後も手番を相手へ渡さない。現段階では既定値をFalseとする。
     is_fast_action = False
 
+    def get_cost(self, game, player_id: int) -> Mapping[DiceType, int]:
+        """現在の状態に応じたカードコストを返す。"""
+        return dict(self.cost)
+
     def can_play(self, game, player_id: int, target=None) -> bool:
         """現在の状態でカードを使用できるか判定する。"""
-        return game.state.players[player_id].dice.can_pay(self.cost)
+        return game.state.players[player_id].dice.can_pay(self.get_cost(game, player_id))
 
     @abstractmethod
     def play(self, game, player_id: int, target=None):
@@ -55,6 +60,22 @@ class WeaponCardDefinition(CardDefinition):
 
     equipment_slot = "weapon"
     weapon_type = ""
+
+    def get_cost(self, game, player_id: int) -> Mapping[DiceType, int]:
+        """武器カードの同色コストをアクティブキャラクターの元素から解決する。"""
+        character_element = game.state.players[player_id].active_character.definition.element
+        dice_type = {
+            Element.PYRO: DiceType.PYRO,
+            Element.HYDRO: DiceType.HYDRO,
+            Element.ANEMO: DiceType.ANEMO,
+            Element.ELECTRO: DiceType.ELECTRO,
+            Element.DENDRO: DiceType.DENDRO,
+            Element.CRYO: DiceType.CRYO,
+            Element.GEO: DiceType.GEO,
+        }.get(character_element)
+        if dice_type is None:
+            raise ValueError("武器カードのコストを解決できない元素です")
+        return {dice_type: 2}
 
     def can_play(self, game, player_id: int, target=None) -> bool:
         if not super().can_play(game, player_id, target):
