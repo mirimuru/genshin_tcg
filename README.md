@@ -38,6 +38,8 @@
 | エネルギー変更イベント | 実装済み（変更前/変更後） |
 | ラウンド終了イベント | 実装済み |
 | カード定義・Registry | 基盤実装済み |
+| カードアクションイベント | 実装済み（使用開始/解決後） |
+| コンテンツカード | モンド風ハッシュドポテトを実装 |
 | GUI・対戦画面 | 未実装 |
 
 ## キャラクターDefinitionのアーキテクチャ
@@ -76,6 +78,30 @@ content/characters/
   └─ xiangling.py
 ```
 
+## カードDefinitionのアーキテクチャ
+
+カードの固定情報と固有効果を `CardDefinition` に分離し、`Game` はカードIDから `CardRegistry` を通して定義を解決します。カード固有処理を `Game` のカードID分岐へ追加せず、`content/cards/` の個別ファイルへ配置できます。
+
+```text
+CardDefinition
+  ├─ card_id / name / cost
+  ├─ can_play()
+  └─ play()
+       │
+       └─ CardActionEvent
+            ├─ 使用開始（resolved=False）
+            └─ 効果解決後（resolved=True）
+
+CardRegistry
+  └─ card_id -> CardDefinition
+
+content/cards/
+  ├─ __init__.py
+  └─ foods.py
+```
+
+現在のリファレンスカードは `content/cards/foods.py` の「モンド風ハッシュドポテト」です。出場キャラクターが生存しておりHPが最大未満の場合に使用でき、1HP回復します。コストは任意1ダイスです。
+
 ### ディルック
 
 現在のディルックDefinitionは、2026年時点の七聖召喚カード仕様を基準に以下を実装しています。
@@ -95,7 +121,7 @@ content/characters/
 
 ### ガイア
 
-ガイアは `CharacterSwitchEvent` を利用するイベント駆動型キャラクターのリファレンスとして追加しています。公式カード仕様では、元素爆発「凛冽なる輪舞」は1氷ダメージを与え、「霜の舞」を3回使用で生成し、自分がキャラクターを交代した後に2氷ダメージを与えます。citeturn0search1turn0search4
+ガイアは `CharacterSwitchEvent` を利用するイベント駆動型キャラクターのリファレンスとして追加しています。公式カード仕様では、元素爆発「凛冽なる輪舞」は1氷ダメージを与え、「霜の舞」を3回使用で生成し、自分がキャラクターを交代した後に2氷ダメージを与えます。
 
 実装では元素爆発の解決イベントをCharacter Statusが購読して `kaeya_icicle` Combat Statusを生成し、そのCombat Statusが自分の `CharacterSwitchEvent` の解決時に2氷ダメージを与えて使用回数を1消費します。相手側の交代では発動しません。
 
@@ -122,8 +148,9 @@ content/characters/
 - `DamageEvent`
 - `EnergyEvent`
 - `RoundEndEvent`
+- `CardActionEvent`
 
-キャラクターアクションと交代イベントには `resolved` フラグがあり、開始通知と解決通知を同じイベント型で扱います。Damage / Energyについても、確定前と確定後を同じイベント境界で処理します。
+キャラクターアクション、交代、カードイベントには `resolved` フラグがあり、開始通知と解決通知を同じイベント型で扱います。Damage / Energyについても、確定前と確定後を同じイベント境界で処理します。
 
 ## 実装済み元素反応
 
@@ -159,18 +186,20 @@ content/characters/
 python -m pytest
 ```
 
-Kaeya追加前の直近確認済み結果: **190 passed**。ガイア追加後の回帰テストは現在確認中です。
+直近のローカル確認では **200 passed**。その後、モンド風ハッシュドポテトのコンテンツカードテストを追加し、GitHub Actionsでも **203 passed** を確認しています。
 
 イベント駆動部分では、以下をテストしています。
 
 - 通常攻撃・元素スキル・元素爆発の開始/解決イベント
 - キャラクター交代の開始/解決イベント
+- カード使用の開始/解決イベント
 - Status / Summonのイベント購読とスナップショット性
 - DamageEventの変更と実ダメージへの反映
 - EnergyEventの上限・下限適用後の実変化量
 - 香菱のグゥオパァー・旋火輪のイベント駆動生成と消費
 - ガイアの元素爆発・霜の舞の交代イベント処理
 - ディルックの既存固有効果
+- モンド風ハッシュドポテトの使用条件・回復・コスト
 
 GitHub Actionsでもpytestを実行しています。
 
@@ -180,7 +209,7 @@ GitHub Actionsでもpytestを実行しています。
 engine/
   __init__.py         # Gameへの共通Effect API登録
   actions.py
-  cards.py
+  cards.py            # CardDefinition / CardRegistry
   dice.py
   effect_api.py       # Character / Combat Status / Summon共通API
   effects.py
@@ -196,6 +225,8 @@ content/
     diluc.py          # ディルックDefinition
     kaeya.py          # ガイアDefinition・固有Combat Status
     xiangling.py      # 香菱Definition・固有Summon
+  cards/
+    foods.py          # モンド風ハッシュドポテト
 players/
   human.py
   cpu.py
@@ -207,6 +238,7 @@ tests/
   test_events.py
   test_kaeya.py
   test_xiangling.py
+  test_content_cards.py
   # その他各ルール・状態・反応・イベントのテスト
 ```
 
