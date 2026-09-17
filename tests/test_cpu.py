@@ -94,11 +94,12 @@ def test_cpu_uses_simulation_and_evaluation_to_choose_action(monkeypatch):
         return SimpleNamespace(state=SimpleNamespace())
 
     def fake_evaluate_state(_state, _player_id):
-        return {
-            skill: 10.0,
-            attack: 20.0,
-            end_round: -5.0,
-        }[simulated_actions[-1]]
+        action = simulated_actions[-1]
+        if action is skill:
+            return 10.0
+        if action is attack:
+            return 20.0
+        return -5.0
 
     monkeypatch.setattr("players.cpu.simulate_action", fake_simulate_action)
     monkeypatch.setattr("players.cpu.evaluate_state", fake_evaluate_state)
