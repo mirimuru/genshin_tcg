@@ -3,8 +3,10 @@ import pytest
 from engine.actions import Action, ActionType
 from engine.cards import CardDefinition, CardRegistry
 from engine.dice import DicePool, DiceType
+from engine.events import CardActionEvent
 from engine.game import Game
 from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
+from engine.statuses import StatusDefinition, StatusInstance
 
 
 class HealCard(CardDefinition):
@@ -15,6 +17,16 @@ class HealCard(CardDefinition):
     def play(self, game, player_id, target=None):
         character = game.state.players[player_id].active_character
         character.heal(2)
+
+
+class CardEventRecorder(StatusDefinition):
+    status_id = "test_card_event_recorder"
+    name = "カードイベント記録"
+    max_usages = None
+
+    def on_event(self, instance, event, game, context):
+        if isinstance(event, CardActionEvent):
+            instance.data.setdefault("events", []).append((event.card_id, event.resolved))
 
 
 def make_game():
@@ -90,3 +102,33 @@ def test_card_appears_in_legal_actions_when_playable():
     actions = game.get_legal_actions(0)
 
     assert Action(0, ActionType.PLAY_CARD, card_id="test_heal") in actions
+
+
+def test_card_action_event_is_emitted_before_and_after_card_resolution():
+    registry = CardRegistry([HealCard])
+    game = make_game()
+    game.card_registry = registry
+    player = game.state.players[0]
+    player.hand = ["test_heal"]
+    recorder = StatusInstance(CardEventRecorder)
+    player.add_combat_status(recorder)
+    player.active_character.hp = 5
+
+    game.execute_action(Action(0, ActionType.PLAY_CARD, card_id="test_heal"))
+
+    assert recorder.data["events"] == [("test_heal", False), ("test_heal", True)]
+
+
+def test_card_action_event_contains_target():
+    registry = CardRegistry([HealCard])
+    game = make_game()
+    game.card_registry = registry
+    player = game.state.players[0]
+    player.hand = ["test_heal"]
+    recorder = StatusInstance(CardEventRecorder)
+    player.add_combat_status(recorder)
+
+    action = Action(0, ActionType.PLAY_CARD, card_id="test_heal", target=2)
+    game.execute_action(action)
+
+    assert recorder.data["events"] == [("test_heal", False), ("test_heal", True)]
