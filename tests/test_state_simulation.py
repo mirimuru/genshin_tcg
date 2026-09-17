@@ -3,12 +3,19 @@ import pytest
 from engine.actions import Action, ActionType
 from engine.dice import DiceType
 from engine.game import Game
-from engine.simulation import copy_game, copy_state, simulate_action
+from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
 
 
 def make_game():
-    game = Game.create_default()
-    game.state.phase = game.state.phase.ACTION
+    players = []
+    for player_id in (0, 1):
+        characters = [
+            CharacterState(f"キャラクター{index}", Element.PYRO)
+            for index in range(3)
+        ]
+        players.append(PlayerState(player_id, characters))
+    game = Game(GameState(players))
+    game.state.phase = GamePhase.ACTION
     game.state.current_player = 0
     game.state.players[0].has_rerolled = True
     return game
@@ -16,7 +23,7 @@ def make_game():
 
 def test_game_state_copy_is_independent():
     game = make_game()
-    copied = copy_state(game.state)
+    copied = game.state.copy()
 
     copied.players[0].characters[0].hp = 3
     copied.players[0].dice.add(DiceType.PYRO, 2)
@@ -54,7 +61,7 @@ def test_simulate_action_does_not_mutate_original():
 
     assert game.state.players[0].characters[0].hp == original_hp
     assert game.state.current_player == 0
-    assert game.state.phase is game.state.phase.ACTION
+    assert game.state.phase is GamePhase.ACTION
     assert simulated is not game
     assert simulated.state is not game.state
 
@@ -67,14 +74,17 @@ def test_simulate_action_rejects_illegal_action_without_mutating_original():
         simulate_action(game, action)
 
     assert game.state.current_player == 0
-    assert game.state.phase is game.state.phase.ACTION
+    assert game.state.phase is GamePhase.ACTION
 
 
 def test_game_state_copy_keeps_character_definitions_usable():
     game = make_game()
-    copied = copy_state(game.state)
+    copied = game.state.copy()
 
     original = game.state.players[0].active_character
     clone = copied.players[0].active_character
     assert clone.definition.character_id == original.definition.character_id
     assert clone.definition.name == original.definition.name
+
+
+from engine.simulation import copy_game, copy_state, simulate_action
