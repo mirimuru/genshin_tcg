@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 
 from engine.dice import DiceType
+from engine.state import Element
 from engine.statuses import WeaponEquipmentStatusDefinition
 
 
@@ -18,9 +19,13 @@ class CardDefinition(ABC):
     # Trueなら使用後も手番を相手へ渡さない。現段階では既定値をFalseとする。
     is_fast_action = False
 
+    def get_cost(self, game, player_id: int) -> Mapping[DiceType, int]:
+        """現在の状態に応じたカードコストを返す。"""
+        return dict(self.cost)
+
     def can_play(self, game, player_id: int, target=None) -> bool:
         """現在の状態でカードを使用できるか判定する。"""
-        return game.state.players[player_id].dice.can_pay(self.cost)
+        return game.state.players[player_id].dice.can_pay(self.get_cost(game, player_id))
 
     @abstractmethod
     def play(self, game, player_id: int, target=None):
@@ -56,10 +61,28 @@ class WeaponCardDefinition(CardDefinition):
     equipment_slot = "weapon"
     weapon_type = ""
     VALID_WEAPON_TYPES = WeaponEquipmentStatusDefinition.VALID_WEAPON_TYPES
+    WEAPON_COST_DICE = 2
+    ELEMENT_TO_DICE = {
+        Element.PYRO: DiceType.PYRO,
+        Element.HYDRO: DiceType.HYDRO,
+        Element.ANEMO: DiceType.ANEMO,
+        Element.ELECTRO: DiceType.ELECTRO,
+        Element.DENDRO: DiceType.DENDRO,
+        Element.CRYO: DiceType.CRYO,
+        Element.GEO: DiceType.GEO,
+    }
 
     def __init__(self):
         if self.weapon_type not in self.VALID_WEAPON_TYPES:
             raise ValueError(f"weapon_typeが不正です: {self.weapon_type}")
+
+    def get_cost(self, game, player_id: int) -> Mapping[DiceType, int]:
+        element = game.state.players[player_id].active_character.definition.element
+        try:
+            dice_type = self.ELEMENT_TO_DICE[element]
+        except KeyError as exc:
+            raise ValueError("武器カードを装備できない元素です") from exc
+        return {dice_type: self.WEAPON_COST_DICE}
 
     def can_play(self, game, player_id: int, target=None) -> bool:
         if not super().can_play(game, player_id, target):
@@ -74,6 +97,8 @@ class WeaponCardDefinition(CardDefinition):
     def play(self, game, player_id: int, target=None):
         character = game.state.players[player_id].active_character
         status = self.create_status()
+        if not isinstance(status, StatusInstance):
+            raise TypeError("武器カードはStatusInstanceを生成する必要があります")
         if not isinstance(status.definition, WeaponEquipmentStatusDefinition):
             raise TypeError("武器カードの状態にはWeaponEquipmentStatusDefinitionが必要です")
         if status.definition.weapon_type != self.weapon_type:
