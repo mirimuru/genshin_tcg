@@ -1,7 +1,7 @@
 import pytest
 
 from engine.actions import Action, ActionType
-from engine.dice import DiceType
+from engine.dice import DicePool, DiceType
 from engine.game import Game
 from engine.simulation import copy_game, simulate_action
 from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
@@ -19,6 +19,8 @@ def make_game():
     game.state.phase = GamePhase.ACTION
     game.state.current_player = 0
     game.state.players[0].has_rerolled = True
+    game.state.players[0].dice = DicePool.default()
+    game.state.players[1].dice = DicePool.default()
     return game
 
 
