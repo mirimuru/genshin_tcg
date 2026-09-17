@@ -91,7 +91,10 @@ def test_cpu_uses_simulation_and_evaluation_to_choose_action(monkeypatch):
 
     def fake_simulate_action(current_game, action):
         simulated_actions.append(action)
-        return SimpleNamespace(state=SimpleNamespace())
+        return SimpleNamespace(
+            state=SimpleNamespace(game_over=False),
+            get_legal_actions=lambda _player_id: [],
+        )
 
     def fake_evaluate_state(_state, _player_id):
         action = simulated_actions[-1]
@@ -108,3 +111,58 @@ def test_cpu_uses_simulation_and_evaluation_to_choose_action(monkeypatch):
 
     assert action == attack
     assert simulated_actions == legal_actions
+
+
+def test_cpu_looks_ahead_to_opponent_response(monkeypatch):
+    game = make_game()
+    cpu = CpuPlayer()
+    attack = Action(0, ActionType.NORMAL_ATTACK)
+    skill = Action(0, ActionType.ELEMENTAL_SKILL)
+    opponent_attack = Action(1, ActionType.NORMAL_ATTACK)
+    opponent_switch = Action(1, ActionType.SWITCH_CHARACTER, target=1)
+    opponent_end = Action(1, ActionType.END_ROUND)
+    simulations = []
+
+    root_states = {
+        "normal_attack": SimpleNamespace(name="attack_state", game_over=False),
+        "elemental_skill": SimpleNamespace(name="skill_state", game_over=False),
+    }
+    response_states = {
+        ("attack_state", opponent_attack): SimpleNamespace(name="attack_after_attack", game_over=False),
+        ("attack_state", opponent_switch): SimpleNamespace(name="attack_after_switch", game_over=False),
+        ("skill_state", opponent_end): SimpleNamespace(name="skill_after_end", game_over=False),
+    }
+
+    def fake_simulate_action(current_game, action):
+        simulations.append(action)
+        if action.player_id == 0:
+            state = root_states[action.action_type.value]
+            responses = {
+                "attack_state": [opponent_attack, opponent_switch],
+                "skill_state": [opponent_end],
+            }[state.name]
+        else:
+            state = response_states[(current_game.state.name, action)]
+            responses = []
+        return SimpleNamespace(
+            state=state,
+            get_legal_actions=lambda _player_id, responses=responses: responses,
+        )
+
+    scores = {
+        "attack_after_attack": 50.0,
+        "attack_after_switch": -20.0,
+        "skill_after_end": 5.0,
+    }
+
+    def fake_evaluate_state(state, _player_id):
+        return scores[state.name]
+
+    game.state.name = "root"
+    monkeypatch.setattr("players.cpu.simulate_action", fake_simulate_action)
+    monkeypatch.setattr("players.cpu.evaluate_state", fake_evaluate_state)
+
+    action = cpu.choose_action(game, 0, legal_actions=[attack, skill])
+
+    assert action is skill
+    assert simulations == [attack, opponent_attack, opponent_switch, skill, opponent_end]
