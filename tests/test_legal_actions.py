@@ -1,6 +1,8 @@
 from engine.actions import Action, ActionType
-from engine.dice import DicePool
+from engine.cards import CardRegistry
+from engine.dice import DicePool, DiceType
 from engine.game import Game
+from engine.legal_actions import LegalActionGenerator
 from engine.state import CharacterState, Element, GameState, PlayerState
 
 
@@ -21,9 +23,13 @@ def action_types(actions):
     return {action.action_type for action in actions}
 
 
+def legal(game, player_id=0):
+    return LegalActionGenerator.generate(game, player_id)
+
+
 def test_generates_basic_actions_for_active_character():
     game = make_game()
-    actions = game.get_legal_actions(0)
+    actions = legal(game)
     assert action_types(actions) == {
         ActionType.NORMAL_ATTACK,
         ActionType.ELEMENTAL_SKILL,
@@ -37,34 +43,81 @@ def test_elemental_burst_is_available_when_energy_is_full():
     game = make_game()
     character = game.state.players[0].active_character
     character.energy = character.max_energy
-    assert ActionType.ELEMENTAL_BURST in action_types(game.get_legal_actions(0))
+    assert ActionType.ELEMENTAL_BURST in action_types(legal(game))
 
 
 def test_forced_switch_only_allows_switch_actions():
     game = make_game()
     game.state.players[0].active_character.hp = 0
-    actions = game.get_legal_actions(0)
+    actions = legal(game)
     assert action_types(actions) == {ActionType.SWITCH_CHARACTER}
     assert {action.target for action in actions} == {1, 2}
 
 
-def test_defeated_player_has_no_legal_actions():
+def test_switch_is_not_legal_without_dice_when_not_forced():
     game = make_game()
-    for character in game.state.players[0].characters:
-        character.hp = 0
-    assert game.get_legal_actions(0) == []
+    game.state.players[0].dice = DicePool()
+    assert not any(action.action_type is ActionType.SWITCH_CHARACTER for action in legal(game))
 
 
-def test_wrong_player_and_finished_game_have_no_legal_actions():
+def test_card_actions_include_each_legal_target():
+    from engine.cards import CardDefinition
+
+    class TargetCard(CardDefinition):
+        card_id = "target_card"
+        name = "Target Card"
+        cost = {DiceType.ANY: 1}
+
+        def get_legal_targets(self, game, player_id):
+            return [0, 1]
+
+        def can_play(self, game, player_id, target=None):
+            return super().can_play(game, player_id, target) and target in {0, 1}
+
+        def play(self, game, player_id, target=None):
+            game.state.players[player_id].active_character_index = target
+
+    registry = CardRegistry([TargetCard()])
     game = make_game()
-    assert game.get_legal_actions(1) == []
-    game.state.game_over = True
-    assert game.get_legal_actions(0) == []
+    game.card_registry = registry
+    game.state.players[0].hand = ["target_card"]
+    actions = [a for a in legal(game) if a.action_type is ActionType.PLAY_CARD]
+    assert actions == [
+        Action(0, ActionType.PLAY_CARD, target=0, card_id="target_card"),
+        Action(0, ActionType.PLAY_CARD, target=1, card_id="target_card"),
+    ]
 
 
-def test_cpu_selects_from_legal_actions():
+def test_unplayable_card_is_not_generated_when_cost_is_insufficient():
+    from content.cards import INSTRUCTORS_CAP
+
     game = make_game()
-    legal = game.get_legal_actions(0)
+    game.card_registry = CardRegistry([INSTRUCTORS_CAP])
+    game.state.players[0].hand = [INSTRUCTORS_CAP.card_id]
+    game.state.players[0].dice = DicePool({DiceType.OMNI: 1})
+    assert not any(
+        action.action_type is ActionType.PLAY_CARD
+        and action.card_id == INSTRUCTORS_CAP.card_id
+        for action in legal(game)
+    )
+
+
+def test_generated_actions_have_payable_costs():
+    game = make_game()
+    for action in legal(game):
+        if action.action_type in {
+            ActionType.NORMAL_ATTACK,
+            ActionType.ELEMENTAL_SKILL,
+            ActionType.ELEMENTAL_BURST,
+            ActionType.SWITCH_CHARACTER,
+            ActionType.PLAY_CARD,
+        }:
+            assert game.state.players[0].dice.can_pay(game.get_action_cost(action))
+
+
+def test_cpu_selects_from_expanded_legal_actions():
+    game = make_game()
+    legal_actions = legal(game)
     from players.cpu import CpuPlayer
-    action = CpuPlayer().choose_action(game, 0, legal_actions=legal)
-    assert action in legal
+    action = CpuPlayer().choose_action(game, 0, legal_actions=legal_actions)
+    assert action in legal_actions

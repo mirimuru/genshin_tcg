@@ -23,6 +23,15 @@ class CardDefinition(ABC):
         """現在の状態に応じたカードコストを返す。"""
         return dict(self.cost)
 
+    def get_legal_targets(self, game, player_id: int) -> Sequence[object]:
+        """現在の状態で列挙すべきカード対象を返す。
+
+        対象を必要としないカードは ``None`` 一件を返す。対象指定カードは
+        サブクラスでこのメソッドをオーバーライドすることで、合法手生成に
+        対象選択を組み込める。
+        """
+        return (None,)
+
     def can_play(self, game, player_id: int, target=None) -> bool:
         """現在の状態でカードを使用できるか判定する。"""
         return game.state.players[player_id].dice.can_pay(self.get_cost(game, player_id))
