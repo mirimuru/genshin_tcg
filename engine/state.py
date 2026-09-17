@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Iterable, List, Optional
 
 from engine.dice import DicePool
-from engine.statuses import StatusInstance
+from engine.statuses import EquipmentStatusDefinition, StatusInstance
 from engine.summons import SummonInstance
 
 
@@ -131,6 +131,25 @@ class CharacterState:
     def add_status(self, status: StatusInstance) -> StatusInstance:
         if not isinstance(status, StatusInstance): raise TypeError("状態はStatusInstanceである必要があります")
         self.remove_status(status.status_id); self.statuses.append(status); return status
+
+    def add_equipment(self, status: StatusInstance) -> StatusInstance:
+        """装備状態を装備スロット単位で置き換えてキャラクターへ装着する。"""
+        if not isinstance(status, StatusInstance):
+            raise TypeError("装備はStatusInstanceである必要があります")
+        if not isinstance(status.definition, EquipmentStatusDefinition):
+            raise TypeError("装備にはEquipmentStatusDefinitionが必要です")
+        if not status.definition.equipment_slot:
+            raise ValueError("equipment_slotは空にできません")
+        self.statuses[:] = [
+            current
+            for current in self.statuses
+            if not (
+                isinstance(current.definition, EquipmentStatusDefinition)
+                and current.definition.equipment_slot == status.definition.equipment_slot
+            )
+        ]
+        self.statuses.append(status)
+        return status
 
     def get_status(self, status_id: str) -> Optional[StatusInstance]:
         return next((s for s in self.statuses if s.status_id == status_id), None)
