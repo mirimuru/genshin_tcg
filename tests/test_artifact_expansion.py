@@ -14,21 +14,26 @@ def test_instructors_cap_is_exported_from_content_cards():
 
 
 def test_artifact_can_be_equipped_without_replacing_weapon_or_talent():
-    from content.characters import Kaeya
+    from content.characters.kaeya import KAEYA
     from content.cards.talents import COLD_BLOODED_STRIKE
     from content.cards.weapons import TRAVELER_HANDY_SWORD
+    from engine.statuses import EquipmentStatusDefinition
 
-    character = Kaeya.create_state()
+    character = KAEYA.create_state()
     character.add_equipment(TRAVELER_HANDY_SWORD.create_status())
     character.add_equipment(COLD_BLOODED_STRIKE.create_status())
     character.add_equipment(INSTRUCTORS_CAP.create_status())
 
-    slots = {status.definition.equipment_slot for status in character.statuses}
+    slots = {
+        status.definition.equipment_slot
+        for status in character.statuses
+        if isinstance(status.definition, EquipmentStatusDefinition)
+    }
     assert slots == {"weapon", "talent", "artifact"}
 
 
 def test_second_artifact_replaces_first_artifact_only():
-    from content.characters import Diluc
+    from content.characters.diluc import DILUC
     from engine.cards import ArtifactCardDefinition
     from engine.statuses import ArtifactEquipmentStatusDefinition, StatusInstance
 
@@ -44,7 +49,7 @@ def test_second_artifact_replaces_first_artifact_only():
         def create_status(self):
             return StatusInstance(OtherArtifactStatus)
 
-    character = Diluc.create_state()
+    character = DILUC.create_state()
     character.add_equipment(INSTRUCTORS_CAP.create_status())
     character.add_equipment(OtherArtifact().create_status())
 
