@@ -41,6 +41,15 @@ class CharacterSwitchEvent(GameEvent):
 
 
 @dataclass
+class CardActionEvent(GameEvent):
+    """カード使用の開始・解決を表すイベント。"""
+    player_id: int
+    card_id: str
+    target: object = None
+    resolved: bool = False
+
+
+@dataclass
 class DamageEvent(GameEvent):
     attacker_id: int
     target_id: int
