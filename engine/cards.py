@@ -34,11 +34,7 @@ class CardDefinition(ABC):
         return dict(self.cost)
 
     def get_legal_targets(self, game, player_id: int) -> tuple[object, ...]:
-        """現在の状態でこのカードに指定できる対象候補を返す。
-
-        キャラクター対象は既存のAction APIとの互換性を保つため、キャラクター番号を返す。
-        ``NONE`` のカードは ``None`` だけを候補とする。
-        """
+        """現在の状態でこのカードに指定できる対象候補を返す。"""
         player = game.state.players[player_id]
         if self.target_type is CardTargetType.NONE:
             return (None,)
@@ -67,7 +63,6 @@ class TalentCardDefinition(CardDefinition):
 
     equipment_slot = "talent"
     required_character_id = ""
-    target_type = CardTargetType.ACTIVE_CHARACTER
 
     def can_play(self, game, player_id: int, target=None) -> bool:
         if not super().can_play(game, player_id, target):
@@ -90,7 +85,6 @@ class WeaponCardDefinition(CardDefinition):
 
     equipment_slot = "weapon"
     weapon_type = ""
-    target_type = CardTargetType.ACTIVE_CHARACTER
 
     def get_cost(self, game, player_id: int) -> Mapping[DiceType, int]:
         """武器カードの同色コストをアクティブキャラクターの元素から解決する。"""
@@ -134,7 +128,6 @@ class ArtifactCardDefinition(CardDefinition):
     """キャラクターに装備する聖遺物カードの共通基盤。"""
 
     equipment_slot = "artifact"
-    target_type = CardTargetType.ACTIVE_CHARACTER
 
     def create_status(self) -> StatusInstance:
         """この聖遺物カードが装備する状態を生成する。"""
