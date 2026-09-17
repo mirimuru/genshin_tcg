@@ -2,7 +2,7 @@ import pytest
 
 from engine.characters import CharacterDefinition
 from engine.dice import DiceType
-from engine.state import CharacterState, Element, GameState, PlayerState
+from engine.state import Element, GameState, PlayerState
 from engine.statuses import StatusDefinition, StatusInstance
 from engine.summons import SummonDefinition, SummonInstance
 from engine.evaluation import evaluate_state
@@ -94,6 +94,19 @@ def test_evaluation_is_from_player_perspective():
     game.players[0].active_character.receive_damage(2)
     game.players[1].active_character.receive_damage(4)
     assert evaluate_state(game, 0) == pytest.approx(-evaluate_state(game, 1))
+
+
+def test_evaluation_does_not_mutate_state():
+    game = make_game()
+    game.players[0].active_character.energy = 1
+    game.players[0].active_character.elemental_aura = Element.PYRO
+    game.players[0].hand.append("card-a")
+    before = game.copy()
+    evaluate_state(game, 0)
+    assert game.players[0].active_character.hp == before.players[0].active_character.hp
+    assert game.players[0].active_character.energy == before.players[0].active_character.energy
+    assert game.players[0].active_character.elemental_aura == before.players[0].active_character.elemental_aura
+    assert game.players[0].hand == before.players[0].hand
 
 
 def test_evaluation_rejects_invalid_player_id():
