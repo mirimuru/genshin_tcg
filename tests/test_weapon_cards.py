@@ -115,6 +115,7 @@ def test_weapon_card_requires_matching_elemental_dice():
 def test_weapon_card_uses_active_character_element_for_cost():
     game = make_game(SwordCharacter())
     card = TravelerHandySword()
+    game.card_registry = CardRegistry([card])
     game.state.players[0].dice = DicePool({DiceType.PYRO: 2})
 
     assert game.get_action_cost(Action(0, ActionType.PLAY_CARD, card_id="traveler_handy_sword")) == {DiceType.PYRO: 2}
