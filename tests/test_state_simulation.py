@@ -3,6 +3,7 @@ import pytest
 from engine.actions import Action, ActionType
 from engine.dice import DiceType
 from engine.game import Game
+from engine.simulation import copy_game, copy_state, simulate_action
 
 
 def make_game():
@@ -15,7 +16,7 @@ def make_game():
 
 def test_game_state_copy_is_independent():
     game = make_game()
-    copied = game.state.copy()
+    copied = copy_state(game.state)
 
     copied.players[0].characters[0].hp = 3
     copied.players[0].dice.add(DiceType.PYRO, 2)
@@ -32,7 +33,7 @@ def test_game_state_copy_is_independent():
 
 def test_game_copy_preserves_state_but_is_independent():
     game = make_game()
-    copied = game.copy()
+    copied = copy_game(game)
 
     assert copied is not game
     assert copied.state is not game.state
@@ -49,7 +50,7 @@ def test_simulate_action_does_not_mutate_original():
     original_hp = game.state.players[0].characters[0].hp
     action = Action(0, ActionType.END_ROUND)
 
-    simulated = game.simulate_action(action)
+    simulated = simulate_action(game, action)
 
     assert game.state.players[0].characters[0].hp == original_hp
     assert game.state.current_player == 0
@@ -63,7 +64,7 @@ def test_simulate_action_rejects_illegal_action_without_mutating_original():
     action = Action(1, ActionType.END_ROUND)
 
     with pytest.raises(ValueError):
-        game.simulate_action(action)
+        simulate_action(game, action)
 
     assert game.state.current_player == 0
     assert game.state.phase is game.state.phase.ACTION
@@ -71,7 +72,7 @@ def test_simulate_action_rejects_illegal_action_without_mutating_original():
 
 def test_game_state_copy_keeps_character_definitions_usable():
     game = make_game()
-    copied = game.state.copy()
+    copied = copy_state(game.state)
 
     original = game.state.players[0].active_character
     clone = copied.players[0].active_character
