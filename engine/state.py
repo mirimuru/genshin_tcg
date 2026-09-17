@@ -1,3 +1,4 @@
+from copy import deepcopy
 from enum import Enum
 from typing import Iterable, List, Optional
 
@@ -230,6 +231,11 @@ class GameState:
     def __init__(self, players):
         if len(players) != 2: raise ValueError("プレイヤーは2人必要です")
         self.players = players; self.round_number = 1; self.phase = GamePhase.ROLL; self.current_player = 0; self.game_over = False; self.winner = None; self.check_game_over()
+
+    def copy(self):
+        """ゲーム進行用の可変状態を独立したオブジェクトとして複製する。"""
+        return deepcopy(self)
+
     def opponent_of(self, player_id):
         if player_id not in (0,1): raise ValueError("player_id must be 0 or 1")
         return self.players[1-player_id]
