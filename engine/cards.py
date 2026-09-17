@@ -1,9 +1,18 @@
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
+from enum import Enum
 
 from engine.dice import DiceType
 from engine.state import Element
 from engine.statuses import ArtifactEquipmentStatusDefinition, StatusInstance, WeaponEquipmentStatusDefinition
+
+
+class CardTargetType(Enum):
+    """カードが要求するキャラクター対象の種類。"""
+
+    NONE = "none"
+    ACTIVE_CHARACTER = "active_character"
+    ANY_ALLY_CHARACTER = "any_ally_character"
 
 
 class CardDefinition(ABC):
@@ -18,10 +27,30 @@ class CardDefinition(ABC):
     cost: Mapping[DiceType, int] = {}
     # Trueなら使用後も手番を相手へ渡さない。現段階では既定値をFalseとする。
     is_fast_action = False
+    target_type = CardTargetType.NONE
 
     def get_cost(self, game, player_id: int) -> Mapping[DiceType, int]:
         """現在の状態に応じたカードコストを返す。"""
         return dict(self.cost)
+
+    def get_legal_targets(self, game, player_id: int) -> tuple[object, ...]:
+        """現在の状態でこのカードに指定できる対象候補を返す。
+
+        キャラクター対象は既存のAction APIとの互換性を保つため、キャラクター番号を返す。
+        ``NONE`` のカードは ``None`` だけを候補とする。
+        """
+        player = game.state.players[player_id]
+        if self.target_type is CardTargetType.NONE:
+            return (None,)
+        if self.target_type is CardTargetType.ACTIVE_CHARACTER:
+            return (player.active_character_index,) if player.active_character.alive else ()
+        if self.target_type is CardTargetType.ANY_ALLY_CHARACTER:
+            return tuple(player.alive_character_indices())
+        raise ValueError(f"未対応のカードTarget種別です: {self.target_type}")
+
+    def is_target_legal(self, game, player_id: int, target=None) -> bool:
+        """指定されたTargetがこのカードのTargetルールを満たすか判定する。"""
+        return target in self.get_legal_targets(game, player_id)
 
     def can_play(self, game, player_id: int, target=None) -> bool:
         """現在の状態でカードを使用できるか判定する。"""
@@ -38,6 +67,7 @@ class TalentCardDefinition(CardDefinition):
 
     equipment_slot = "talent"
     required_character_id = ""
+    target_type = CardTargetType.ACTIVE_CHARACTER
 
     def can_play(self, game, player_id: int, target=None) -> bool:
         if not super().can_play(game, player_id, target):
@@ -60,6 +90,7 @@ class WeaponCardDefinition(CardDefinition):
 
     equipment_slot = "weapon"
     weapon_type = ""
+    target_type = CardTargetType.ACTIVE_CHARACTER
 
     def get_cost(self, game, player_id: int) -> Mapping[DiceType, int]:
         """武器カードの同色コストをアクティブキャラクターの元素から解決する。"""
@@ -103,6 +134,7 @@ class ArtifactCardDefinition(CardDefinition):
     """キャラクターに装備する聖遺物カードの共通基盤。"""
 
     equipment_slot = "artifact"
+    target_type = CardTargetType.ACTIVE_CHARACTER
 
     def create_status(self) -> StatusInstance:
         """この聖遺物カードが装備する状態を生成する。"""
