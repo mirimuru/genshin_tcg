@@ -29,7 +29,7 @@ class JueyunGuobaStatus(StatusDefinition):
     max_usages = 1
 
     def on_event(self, instance, event, game, context):
-        if isinstance(event, NormalAttackEvent) and event.player_id == context.player_id and not event.resolved:
+        if isinstance(event, NormalAttackEvent) and event.player_id == context.owner_id and not event.resolved:
             instance.data["armed"] = True
 
     def modify_damage(self, instance, amount, element, game, context):
