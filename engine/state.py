@@ -25,7 +25,15 @@ class GamePhase(Enum):
 class CharacterDefinition:
     """キャラクター固有ルールと固定情報を保持する定義。"""
 
-    def __init__(self, character_id: str, name: str, element: Element, max_hp: int = 10, max_energy: int = 2):
+    def __init__(
+        self,
+        character_id: str,
+        name: str,
+        element: Element,
+        max_hp: int = 10,
+        max_energy: int = 2,
+        weapon_type: str | None = None,
+    ):
         if not character_id:
             raise ValueError("character_id must not be empty")
         if not name:
@@ -39,6 +47,7 @@ class CharacterDefinition:
         self.element = element
         self.max_hp = max_hp
         self.max_energy = max_energy
+        self.weapon_type = weapon_type
 
     def create_state(self):
         return CharacterState(
