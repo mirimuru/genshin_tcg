@@ -331,6 +331,10 @@ class Game:
         player = self.state.players[player_id]
         if self.state.phase is not GamePhase.ROLL and player.requires_switch and action.action_type is not ActionType.SWITCH_CHARACTER:
             raise ValueError("強制交代が必要です")
+        if action.action_type is ActionType.SWITCH_CHARACTER and (
+            not isinstance(action.target, int) or not player.can_switch_to(action.target)
+        ):
+            raise ValueError("交代先が不正です")
         if action.action_type is not ActionType.PLAY_CARD and not self.is_action_legal(action):
             raise ValueError("合法なActionではありません")
         if self.state.phase is GamePhase.ROLL:
