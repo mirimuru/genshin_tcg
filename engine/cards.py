@@ -3,7 +3,7 @@ from collections.abc import Mapping, Sequence
 
 from engine.dice import DiceType
 from engine.state import Element
-from engine.statuses import StatusInstance, WeaponEquipmentStatusDefinition
+from engine.statuses import ArtifactEquipmentStatusDefinition, StatusInstance, WeaponEquipmentStatusDefinition
 
 
 class CardDefinition(ABC):
@@ -96,6 +96,24 @@ class WeaponCardDefinition(CardDefinition):
             raise ValueError("武器状態のequipment_slotがweaponではありません")
         if status.definition.weapon_type != self.weapon_type:
             raise ValueError("武器カードと装備状態のweapon_typeが一致しません")
+        game.state.players[player_id].active_character.add_equipment(status)
+
+
+class ArtifactCardDefinition(CardDefinition):
+    """キャラクターに装備する聖遺物カードの共通基盤。"""
+
+    equipment_slot = "artifact"
+
+    def create_status(self) -> StatusInstance:
+        """この聖遺物カードが装備する状態を生成する。"""
+        raise NotImplementedError
+
+    def play(self, game, player_id: int, target=None):
+        status = self.create_status()
+        if not isinstance(status, StatusInstance) or not isinstance(status.definition, ArtifactEquipmentStatusDefinition):
+            raise TypeError("聖遺物カードはArtifactEquipmentStatusDefinitionを装備する必要があります")
+        if status.definition.equipment_slot != self.equipment_slot:
+            raise ValueError("聖遺物状態のequipment_slotがartifactではありません")
         game.state.players[player_id].active_character.add_equipment(status)
 
 
