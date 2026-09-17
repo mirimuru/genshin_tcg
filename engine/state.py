@@ -25,7 +25,9 @@ class GamePhase(Enum):
 class CharacterDefinition:
     """キャラクター固有ルールと固定情報を保持する定義。"""
 
-    def __init__(self, character_id: str, name: str, element: Element, max_hp: int = 10, max_energy: int = 2):
+    VALID_WEAPON_TYPES = frozenset({"sword", "claymore", "polearm", "bow", "catalyst"})
+
+    def __init__(self, character_id: str, name: str, element: Element, max_hp: int = 10, max_energy: int = 2, weapon_type: str | None = None):
         if not character_id:
             raise ValueError("character_id must not be empty")
         if not name:
@@ -34,11 +36,14 @@ class CharacterDefinition:
             raise ValueError("max_hp must be greater than 0")
         if max_energy < 0:
             raise ValueError("max_energy must not be negative")
+        if weapon_type is not None and weapon_type not in self.VALID_WEAPON_TYPES:
+            raise ValueError(f"weapon_typeが不正です: {weapon_type}")
         self.character_id = character_id
         self.name = name
         self.element = element
         self.max_hp = max_hp
         self.max_energy = max_energy
+        self.weapon_type = weapon_type
 
     def create_state(self):
         return CharacterState(

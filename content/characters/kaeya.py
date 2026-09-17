@@ -34,6 +34,7 @@ class Kaeya(CharacterDefinition):
     character_id = "kaeya"
     name = "ガイア"
     element = Element.CRYO
+    weapon_type = "sword"
     max_hp = 10
     max_energy = 2
     normal_attack_cost = {DiceType.CRYO: 1, DiceType.ANY: 2}

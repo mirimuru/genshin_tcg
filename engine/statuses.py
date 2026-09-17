@@ -25,6 +25,18 @@ class EquipmentStatusDefinition(StatusDefinition):
     equipment_slot = ""
 
 
+class WeaponEquipmentStatusDefinition(EquipmentStatusDefinition):
+    """武器としてキャラクターに装備される状態効果の定義。"""
+
+    equipment_slot = "weapon"
+    weapon_type = ""
+    VALID_WEAPON_TYPES = frozenset({"sword", "claymore", "polearm", "bow", "catalyst"})
+
+    def __init__(self):
+        if self.weapon_type not in self.VALID_WEAPON_TYPES:
+            raise ValueError(f"weapon_typeが不正です: {self.weapon_type}")
+
+
 class StatusInstance:
     """ゲーム中に存在する1つのStatusDefinitionの実体。"""
 

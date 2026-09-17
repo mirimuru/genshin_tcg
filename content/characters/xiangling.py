@@ -54,6 +54,7 @@ class Xiangling(CharacterDefinition):
     character_id = "xiangling"
     name = "香菱"
     element = Element.PYRO
+    weapon_type = "polearm"
     max_hp = 10
     max_energy = 2
     normal_attack_cost = {DiceType.PYRO: 1, DiceType.ANY: 2}

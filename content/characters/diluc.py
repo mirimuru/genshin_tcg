@@ -19,6 +19,7 @@ class Diluc(CharacterDefinition):
     character_id = "diluc"
     name = "ディルック"
     element = Element.PYRO
+    weapon_type = "claymore"
     max_hp = 10
     max_energy = 3
     normal_attack_cost = {DiceType.PYRO: 1, DiceType.ANY: 2}

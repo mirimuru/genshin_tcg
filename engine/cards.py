@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 
 from engine.dice import DiceType
+from engine.statuses import StatusInstance, WeaponEquipmentStatusDefinition
 
 
 class CardDefinition(ABC):
@@ -47,6 +48,39 @@ class TalentCardDefinition(CardDefinition):
     def play(self, game, player_id: int, target=None):
         character = game.state.players[player_id].active_character
         character.add_equipment(self.create_status())
+
+
+class WeaponCardDefinition(CardDefinition):
+    """武器カード。対応する武器種のキャラクターへ武器状態を装備する。"""
+
+    equipment_slot = "weapon"
+    weapon_type = ""
+    VALID_WEAPON_TYPES = WeaponEquipmentStatusDefinition.VALID_WEAPON_TYPES
+
+    def __init__(self):
+        if self.weapon_type not in self.VALID_WEAPON_TYPES:
+            raise ValueError(f"weapon_typeが不正です: {self.weapon_type}")
+
+    def can_play(self, game, player_id: int, target=None) -> bool:
+        if not super().can_play(game, player_id, target):
+            return False
+        character = game.state.players[player_id].active_character
+        return getattr(character.definition, "weapon_type", None) == self.weapon_type
+
+    def create_status(self):
+        """この武器カードが装備する状態を生成する。"""
+        raise NotImplementedError
+
+    def play(self, game, player_id: int, target=None):
+        character = game.state.players[player_id].active_character
+        status = self.create_status()
+        if not isinstance(status, StatusInstance):
+            raise TypeError("武器カードはStatusInstanceを生成する必要があります")
+        if not isinstance(status.definition, WeaponEquipmentStatusDefinition):
+            raise TypeError("武器カードの状態にはWeaponEquipmentStatusDefinitionが必要です")
+        if status.definition.weapon_type != self.weapon_type:
+            raise ValueError("武器カードと装備状態のweapon_typeが一致しません")
+        character.add_equipment(status)
 
 
 class CardRegistry:

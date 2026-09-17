@@ -16,6 +16,7 @@ class CharacterDefinition(_StateCharacterDefinition):
     element = None
     max_hp = 10
     max_energy = 2
+    weapon_type = None
 
     def __init__(
         self,
@@ -24,6 +25,7 @@ class CharacterDefinition(_StateCharacterDefinition):
         element=None,
         max_hp: int | None = None,
         max_energy: int | None = None,
+        weapon_type: str | None = None,
     ):
         super().__init__(
             character_id=self.character_id if character_id is None else character_id,
@@ -31,6 +33,7 @@ class CharacterDefinition(_StateCharacterDefinition):
             element=self.element if element is None else element,
             max_hp=self.max_hp if max_hp is None else max_hp,
             max_energy=self.max_energy if max_energy is None else max_energy,
+            weapon_type=self.weapon_type if weapon_type is None else weapon_type,
         )
 
     def create_state(self):
