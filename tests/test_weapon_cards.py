@@ -1,5 +1,4 @@
-import pytest
-
+from engine.actions import Action, ActionType
 from engine.cards import CardDefinition, CardRegistry
 from engine.dice import DicePool, DiceType
 from engine.game import Game
@@ -111,7 +110,7 @@ def test_weapon_card_equips_status():
     player.hand = ["traveler_handy_sword"]
     player.dice = DicePool({DiceType.OMNI: 2})
 
-    game.execute_action(__import__("engine.actions", fromlist=["Action"]).Action(0, __import__("engine.actions", fromlist=["ActionType"]).ActionType.PLAY_CARD, card_id="traveler_handy_sword"))
+    game.execute_action(Action(0, ActionType.PLAY_CARD, card_id="traveler_handy_sword"))
 
     equipped = player.active_character.get_status("traveler_handy_sword")
     assert equipped is not None
@@ -124,7 +123,6 @@ def test_traveler_handy_sword_adds_one_damage_to_normal_attack():
     game = make_game(TestSwordCharacter())
     player = game.state.players[0]
     player.active_character.add_equipment(StatusInstance(TravelerHandySwordStatus))
-    player.dice = DicePool({DiceType.OMNI: 3})
     opponent = game.state.players[1].active_character
 
     game.normal_attack(0)
@@ -136,7 +134,6 @@ def test_traveler_handy_sword_does_not_modify_elemental_skill():
     game = make_game(TestSwordCharacter())
     player = game.state.players[0]
     player.active_character.add_equipment(StatusInstance(TravelerHandySwordStatus))
-    player.dice = DicePool({DiceType.OMNI: 3})
     opponent = game.state.players[1].active_character
 
     game.elemental_skill(0)
