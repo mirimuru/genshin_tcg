@@ -19,6 +19,7 @@ class NoTargetCard(CardDefinition):
     card_id = "no_target_card"
     name = "対象なしテストカード"
     cost = {DiceType.ANY: 1}
+    target_type = CardTargetType.NONE
 
     def play(self, game, player_id, target=None):
         pass
