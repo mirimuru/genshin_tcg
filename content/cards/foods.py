@@ -8,7 +8,6 @@ class SweetMadame(CardDefinition):
     card_id = "sweet_madame"
     name = "モンド風ハッシュドポテト"
     cost = {DiceType.ANY: 1}
-    is_fast_action = True
 
     def can_play(self, game, player_id, target=None):
         player = game.state.players[player_id]
