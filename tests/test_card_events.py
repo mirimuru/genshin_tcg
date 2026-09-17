@@ -1,7 +1,7 @@
 import pytest
 
 from engine.actions import Action, ActionType
-from engine.cards import CardDefinition, CardRegistry
+from engine.cards import CardDefinition, CardRegistry, CardTargetType
 from engine.dice import DicePool, DiceType
 from engine.events import CardActionEvent
 from engine.game import Game
@@ -25,6 +25,7 @@ class EventProbeCard(CardDefinition):
     card_id = "test_event_probe"
     name = "イベント検証カード"
     cost = {DiceType.ANY: 1}
+    target_type = CardTargetType.ANY_ALLY_CHARACTER
 
     def play(self, game, player_id, target=None):
         character = game.state.players[player_id].active_character
@@ -99,8 +100,8 @@ def test_card_action_event_is_snapshot_notified():
     player.hand = ["test_event_probe"]
     player.active_character.add_status(StatusInstance(AddProbe))
 
-    game.execute_action(Action(0, ActionType.PLAY_CARD, card_id="test_event_probe", target=None))
+    game.execute_action(Action(0, ActionType.PLAY_CARD, card_id="test_event_probe", target=0))
 
-    probe = player.active_character.get_status("event_probe")
-    assert probe is not None
-    assert probe.data.get("events") == [(0, "test_event_probe", None, True)]
+    assert player.active_character.get_status("event_probe").data["events"] == [
+        (0, "test_event_probe", 0, True),
+    ]
