@@ -128,9 +128,15 @@ def test_cpu_looks_ahead_to_opponent_response(monkeypatch):
         "elemental_skill": SimpleNamespace(name="skill_state", game_over=False),
     }
     response_states = {
-        ("attack_state", opponent_attack): SimpleNamespace(name="attack_after_attack", game_over=False),
-        ("attack_state", opponent_switch): SimpleNamespace(name="attack_after_switch", game_over=False),
-        ("skill_state", opponent_end): SimpleNamespace(name="skill_after_end", game_over=False),
+        ("attack_state", ActionType.NORMAL_ATTACK, None): SimpleNamespace(
+            name="attack_after_attack", game_over=False
+        ),
+        ("attack_state", ActionType.SWITCH_CHARACTER, 1): SimpleNamespace(
+            name="attack_after_switch", game_over=False
+        ),
+        ("skill_state", ActionType.END_ROUND, None): SimpleNamespace(
+            name="skill_after_end", game_over=False
+        ),
     }
 
     def fake_simulate_action(current_game, action):
@@ -142,7 +148,8 @@ def test_cpu_looks_ahead_to_opponent_response(monkeypatch):
                 "skill_state": [opponent_end],
             }[state.name]
         else:
-            state = response_states[(current_game.state.name, action)]
+            key = (current_game.state.name, action.action_type, action.target)
+            state = response_states[key]
             responses = []
         return SimpleNamespace(
             state=state,
