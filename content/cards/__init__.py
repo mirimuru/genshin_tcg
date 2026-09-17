@@ -1,6 +1,3 @@
-from content.cards.food import SweetMadame
+from content.cards.foods import SWEET_MADAME, SweetMadame
 
-
-CARD_REGISTRY = {
-    "sweet_madame": SweetMadame,
-}
+__all__ = ["SWEET_MADAME", "SweetMadame"]
