@@ -1,5 +1,6 @@
 from engine.actions import Action, ActionType
 from engine.dice import DiceType
+from engine.legal_actions import LegalActionGenerator
 from engine.state import GamePhase
 
 
@@ -10,7 +11,7 @@ class CpuPlayer:
 
     def choose_action(self, game, player_id: int, legal_actions=None) -> Action:
         if legal_actions is None:
-            legal_actions = game.get_legal_actions(player_id)
+            legal_actions = LegalActionGenerator.generate(game, player_id)
         if not legal_actions:
             return Action(player_id, ActionType.END_ROUND)
 
