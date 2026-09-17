@@ -6,9 +6,10 @@ from engine.state import GamePhase
 
 
 class CpuPlayer:
-    """合法手をシミュレーションし、状態評価で行動を選択するCPU。"""
+    """合法手を探索・シミュレーションし、状態評価で行動を選択するCPU。"""
 
     LOW_HP_THRESHOLD = 3
+    SEARCH_DEPTH = 2
     ACTION_TIE_BREAK = {
         ActionType.ELEMENTAL_BURST: 4,
         ActionType.ELEMENTAL_SKILL: 3,
@@ -50,16 +51,28 @@ class CpuPlayer:
         return max(
             legal_actions,
             key=lambda action: (
-                self._evaluate_action(game, player_id, action),
+                self._evaluate_action(game, player_id, action, self.SEARCH_DEPTH),
                 self.ACTION_TIE_BREAK.get(action.action_type, 0),
             ),
         )
 
-    @staticmethod
-    def _evaluate_action(game, player_id: int, action: Action) -> float:
-        """Actionを仮想実行し、結果状態をCPU視点で評価する。"""
+    @classmethod
+    def _evaluate_action(cls, game, player_id, action, depth=1) -> float:
+        """Actionを仮想実行し、相手の最善応答まで含めて評価する。"""
         simulated_game = simulate_action(game, action)
-        return evaluate_state(simulated_game.state, player_id)
+        if depth <= 1 or simulated_game.state.game_over:
+            return evaluate_state(simulated_game.state, player_id)
+
+        opponent_id = 1 - player_id
+        opponent_actions = simulated_game.get_legal_actions(opponent_id)
+        if not opponent_actions:
+            return evaluate_state(simulated_game.state, player_id)
+
+        # 相手は自分にとって最も不利な応答を選ぶ、というminimaxの仮定。
+        return min(
+            cls._evaluate_action(simulated_game, opponent_id, opponent_action, depth - 1)
+            for opponent_action in opponent_actions
+        )
 
     @staticmethod
     def _choose_reroll(game, player_id, legal_actions) -> Action:
