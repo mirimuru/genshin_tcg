@@ -277,6 +277,39 @@ class Game:
         actions.append(Action(player_id, ActionType.END_ROUND))
         return actions
 
+    def is_action_legal(self, action: Action) -> bool:
+        """現在のゲーム状態で、直接実行してよいActionかを検証する。"""
+        if not isinstance(action, Action) or action.player_id not in (0, 1):
+            return False
+        if self.state.game_over or action.player_id != self.state.current_player:
+            return False
+        player = self.state.players[action.player_id]
+        if player.defeated:
+            return False
+        if self.state.phase is GamePhase.ROLL:
+            return action in self.get_legal_actions(action.player_id)
+        if action.action_type is ActionType.PLAY_CARD:
+            return action.card_id is not None and self._card_is_legal(action.player_id, action.card_id, action.target)
+        if player.requires_switch:
+            return action.action_type is ActionType.SWITCH_CHARACTER
+        if action.action_type in {ActionType.NORMAL_ATTACK, ActionType.ELEMENTAL_SKILL, ActionType.ELEMENTAL_BURST}:
+            if action.target is not None or action.card_id is not None or self._is_frozen(player.active_character):
+                return False
+            if action.action_type is ActionType.ELEMENTAL_BURST and player.active_character.energy < player.active_character.max_energy:
+                return False
+            return player.dice.can_pay(self.get_action_cost(action))
+        if action.action_type is ActionType.SWITCH_CHARACTER:
+            if action.card_id is not None or not isinstance(action.target, int):
+                return False
+            return player.dice.can_pay(self.get_action_cost(action))
+        if action.action_type is ActionType.ELEMENTAL_TUNING:
+            if action.card_id is not None or not isinstance(action.target, DiceType) or action.target is DiceType.ANY:
+                return False
+            return action.target in DicePool.ROLLABLE_DICE_TYPES and action.target is not self._element_to_dice_type(player.active_character.element) and player.dice.count(action.target) > 0
+        if action.action_type is ActionType.END_ROUND:
+            return action.target is None and action.card_id is None
+        return False
+
     def execute_action(self, action: Action) -> None:
         if not isinstance(action, Action):
             raise TypeError("action must be Action")
@@ -288,6 +321,10 @@ class Game:
         if player_id != self.state.current_player:
             raise ValueError("現在のプレイヤーではありません")
         player = self.state.players[player_id]
+        if self.state.phase is not GamePhase.ROLL and player.requires_switch and action.action_type is not ActionType.SWITCH_CHARACTER:
+            raise ValueError("強制交代が必要です")
+        if action.action_type is not ActionType.PLAY_CARD and not self.is_action_legal(action):
+            raise ValueError("合法なActionではありません")
         if self.state.phase is GamePhase.ROLL:
             if action.action_type is not ActionType.REROLL_DICE:
                 raise ValueError("ロールフェーズではリロールのみ実行できます")
