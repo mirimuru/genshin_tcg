@@ -1,6 +1,6 @@
 from engine.cards import WeaponCardDefinition
 from engine.dice import DiceType
-from engine.events import NormalAttackEvent
+from engine.events import CharacterActionEvent
 from engine.statuses import StatusInstance, WeaponEquipmentStatusDefinition
 
 
@@ -12,11 +12,14 @@ class TravelersHandySwordStatus(WeaponEquipmentStatusDefinition):
     weapon_type = "sword"
 
     def on_event(self, instance, event, game, context):
-        if isinstance(event, NormalAttackEvent) and event.player_id == context.owner_id and not event.resolved:
-            instance.data["armed"] = True
+        if not isinstance(event, CharacterActionEvent):
+            return
+        if event.player_id != context.owner_id or event.character_index != context.character_index:
+            return
+        instance.data["armed"] = not event.resolved
 
     def modify_damage(self, instance, amount, element, game, context):
-        if instance.data.pop("armed", False):
+        if instance.data.get("armed", False):
             return amount + 1, element
         return amount, element
 
