@@ -57,6 +57,46 @@ class DicePool:
         rolled = Counter(chooser.choice(cls.ROLLABLE_DICE_TYPES) for _ in range(count))
         return cls(rolled)
 
+    @classmethod
+    def roll_outcomes(
+        cls,
+        count: int = DEFAULT_DICE,
+        dice_types: tuple[DiceType, ...] | None = None,
+    ) -> list[tuple["DicePool", float]]:
+        """指定個数のロールについて、全ての異なる結果と確率を列挙する。
+
+        通常の ``roll`` と異なり乱数を使用せず、CPUの確率探索から
+        決定論的に利用できる。各面は一様確率であるとする。
+        """
+        if count < 0:
+            raise ValueError("dice count must not be negative")
+        faces = tuple(dice_types) if dice_types is not None else cls.ROLLABLE_DICE_TYPES
+        if not faces:
+            raise ValueError("dice_types must not be empty")
+        if any(not isinstance(dice_type, DiceType) for dice_type in faces):
+            raise TypeError("dice_types must contain DiceType values")
+        if len(set(faces)) != len(faces):
+            raise ValueError("dice_types must not contain duplicates")
+
+        outcomes: dict[tuple[tuple[DiceType, int], ...], int] = {}
+        total_sequences = len(faces) ** count
+
+        def enumerate_rolls(remaining: int, counts: Counter[DiceType]) -> None:
+            if remaining == 0:
+                key = tuple((dice_type, counts[dice_type]) for dice_type in faces if counts[dice_type])
+                outcomes[key] = outcomes.get(key, 0) + 1
+                return
+            for dice_type in faces:
+                counts[dice_type] += 1
+                enumerate_rolls(remaining - 1, counts)
+                counts[dice_type] -= 1
+
+        enumerate_rolls(count, Counter())
+        return [
+            (cls(dict(key)), sequences / total_sequences)
+            for key, sequences in outcomes.items()
+        ]
+
     @property
     def total(self) -> int:
         return sum(self._dice.values())
