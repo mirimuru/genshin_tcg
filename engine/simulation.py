@@ -87,6 +87,42 @@ def simulate_roll(game: Game, player_id: int, count: int | None = None) -> list[
     ]
 
 
+
+def simulate_round_roll(
+    game: Game,
+    count: int | None = None,
+) -> list[ChanceOutcome[Game]]:
+    """次ラウンド開始時の両プレイヤーのダイス生成をChance Nodeへ展開する。
+
+    プレイヤーごとのダイスロールは独立事象として扱い、両者の結果を
+    直積で展開する。元のGameは変更せず、各結果を独立したGameとして返す。
+    """
+    if not isinstance(game, Game):
+        raise TypeError("game must be Game")
+    if count is None:
+        count = DEFAULT_ROLL_DICE
+    if count < 0:
+        raise ValueError("dice count must not be negative")
+
+    player_outcomes = DicePool.roll_outcomes(count)
+    outcomes: list[ChanceOutcome[Game]] = []
+    for first_dice, first_probability in player_outcomes:
+        for second_dice, second_probability in player_outcomes:
+            simulated = copy_game(game)
+            simulated.state.players[0].dice = first_dice
+            simulated.state.players[1].dice = second_dice
+            simulated.state.players[0].has_rerolled = False
+            simulated.state.players[1].has_rerolled = False
+            simulated.state.phase = GamePhase.ROLL
+            simulated.state.current_player = 0
+            outcomes.append(
+                ChanceOutcome(
+                    simulated,
+                    first_probability * second_probability,
+                )
+            )
+    return outcomes
+
 def simulate_reroll(game: Game, action: Action) -> list[ChanceOutcome[Game]]:
     """リロールActionを乱数なしのChance Nodeへ展開する。
 
