@@ -230,7 +230,7 @@ class PlayerState:
 class GameState:
     def __init__(self, players):
         if len(players) != 2: raise ValueError("プレイヤーは2人必要です")
-        self.players = players; self.round_number = 1; self.phase = GamePhase.ROLL; self.current_player = 0; self.game_over = False; self.winner = None; self.check_game_over()
+        self.players = players; self.round_number = 1; self.phase = GamePhase.ROLL; self.current_player = 0; self.round_starter = 0; self.game_over = False; self.winner = None; self.check_game_over()
 
     def copy(self):
         """ゲーム進行用の可変状態を独立したオブジェクトとして複製する。"""
