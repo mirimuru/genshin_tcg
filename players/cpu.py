@@ -60,11 +60,26 @@ class CpuPlayer:
     def _evaluate_action(cls, game, player_id, action, depth=1) -> float:
         """Actionを仮想実行し、相手の最善応答まで含めてCPU視点で評価する。"""
         simulated_game = simulate_action(game, action)
-        return cls._minimax(simulated_game, player_id, 1 - player_id, depth - 1)
+        return cls._minimax(
+            simulated_game,
+            player_id,
+            1 - player_id,
+            depth - 1,
+            alpha=float("-inf"),
+            beta=float("inf"),
+        )
 
     @classmethod
-    def _minimax(cls, game, root_player_id, current_player_id, depth) -> float:
-        """指定プレイヤー視点を固定したminimax探索を行う。"""
+    def _minimax(
+        cls,
+        game,
+        root_player_id,
+        current_player_id,
+        depth,
+        alpha=float("-inf"),
+        beta=float("inf"),
+    ) -> float:
+        """指定プレイヤー視点を固定したalpha-beta minimax探索を行う。"""
         if depth <= 0 or game.state.game_over:
             return evaluate_state(game.state, root_player_id)
 
@@ -72,18 +87,42 @@ class CpuPlayer:
         if not legal_actions:
             return evaluate_state(game.state, root_player_id)
 
-        values = (
-            cls._minimax(
-                simulate_action(game, action),
-                root_player_id,
-                1 - current_player_id,
-                depth - 1,
-            )
-            for action in legal_actions
-        )
         if current_player_id == root_player_id:
-            return max(values)
-        return min(values)
+            value = float("-inf")
+            for action in legal_actions:
+                value = max(
+                    value,
+                    cls._minimax(
+                        simulate_action(game, action),
+                        root_player_id,
+                        1 - current_player_id,
+                        depth - 1,
+                        alpha,
+                        beta,
+                    ),
+                )
+                alpha = max(alpha, value)
+                if alpha >= beta:
+                    break
+            return value
+
+        value = float("inf")
+        for action in legal_actions:
+            value = min(
+                value,
+                cls._minimax(
+                    simulate_action(game, action),
+                    root_player_id,
+                    1 - current_player_id,
+                    depth - 1,
+                    alpha,
+                    beta,
+                ),
+            )
+            beta = min(beta, value)
+            if alpha >= beta:
+                break
+        return value
 
     @staticmethod
     def _choose_reroll(game, player_id, legal_actions) -> Action:
