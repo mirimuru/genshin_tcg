@@ -115,7 +115,7 @@ def simulate_round_roll(
             simulated.state.players[0].has_rerolled = False
             simulated.state.players[1].has_rerolled = False
             simulated.state.phase = GamePhase.ROLL
-            simulated.state.current_player = 0
+            simulated.state.current_player = simulated.state.round_starter
             outcomes.append(
                 ChanceOutcome(
                     simulated,
@@ -156,7 +156,7 @@ def sample_round_roll(
         simulated.state.players[0].has_rerolled = False
         simulated.state.players[1].has_rerolled = False
         simulated.state.phase = GamePhase.ROLL
-        simulated.state.current_player = 0
+        simulated.state.current_player = simulated.state.round_starter
         result.append(ChanceOutcome(simulated, probability))
     return result
 
