@@ -34,6 +34,8 @@ class CpuPlayer:
         if self.round_roll_samples <= 0:
             raise ValueError("round_roll_samples must be positive")
         self.last_search_nodes = 0
+        self.last_search_cache_hits = 0
+        self._search_cache = {}
 
     def choose_action(self, game, player_id: int, legal_actions=None) -> Action:
         if legal_actions is None:
@@ -79,8 +81,14 @@ class CpuPlayer:
         if depth <= 0 or game.state.game_over:
             return evaluate_state(game.state, player_id)
 
+        cache_key = self._chance_cache_key("round_roll", game, player_id, depth)
+        cached = self._search_cache.get(cache_key)
+        if cached is not None:
+            self.last_search_cache_hits += 1
+            return cached
+
         outcomes = sample_round_roll(game, samples=self.round_roll_samples)
-        return expected_value(
+        value = expected_value(
             outcomes,
             lambda state: self._evaluate_round_roll_outcome(
                 state,
@@ -88,6 +96,8 @@ class CpuPlayer:
                 depth,
             ),
         )
+        self._search_cache[cache_key] = value
+        return value
 
     def _evaluate_round_roll_outcome(self, game, root_player_id, depth) -> float:
         """次ラウンドRoll後のROLL/Reroll/Actionを探索する。"""
@@ -109,13 +119,20 @@ class CpuPlayer:
             depth = self.search_depth
         if depth <= 0 or getattr(getattr(game, "state", None), "game_over", False):
             return evaluate_state(game.state, player_id)
+        cache_key = self._chance_cache_key("roll", game, player_id, depth)
+        cached = self._search_cache.get(cache_key)
+        if cached is not None:
+            self.last_search_cache_hits += 1
+            return cached
         outcomes = simulate_roll(game, player_id)
         if not outcomes:
             return evaluate_state(game.state, player_id)
-        return expected_value(
+        value = expected_value(
             outcomes,
             lambda outcome: self._evaluate_chance_outcome(outcome, player_id, depth),
         )
+        self._search_cache[cache_key] = value
+        return value
 
     def _evaluate_chance_outcome(self, game, player_id, depth):
         """ChanceOutcome後のGameを探索し、直接評価可能な状態にも対応する。"""
@@ -149,10 +166,15 @@ class CpuPlayer:
         """リロールActionをChance Nodeとして展開し、結果の期待値を返す。"""
         if depth <= 0:
             return evaluate_state(game.state, root_player_id)
+        cache_key = self._chance_cache_key("reroll", game, root_player_id, depth, action)
+        cached = self._search_cache.get(cache_key)
+        if cached is not None:
+            self.last_search_cache_hits += 1
+            return cached
         outcomes = simulate_reroll(game, action)
         if not outcomes:
             return evaluate_state(game.state, root_player_id)
-        return expected_value(
+        value = expected_value(
             outcomes,
             lambda state: self._evaluate_reroll_outcome(
                 state,
@@ -160,6 +182,8 @@ class CpuPlayer:
                 depth,
             ),
         )
+        self._search_cache[cache_key] = value
+        return value
 
     def _evaluate_reroll_outcome(self, state, root_player_id, depth) -> float:
         if hasattr(state, "state"):
@@ -176,18 +200,78 @@ class CpuPlayer:
 
     def _search_value(self, game, root_player_id, current_player_id, depth, alpha=float("-inf"), beta=float("inf")) -> float:
         self.last_search_nodes = 0
+        self.last_search_cache_hits = 0
+        self._search_cache.clear()
         return self._search_node(game, root_player_id, current_player_id, depth, alpha, beta)
 
+    def _search_cache_key(self, game, root_player_id, current_player_id, depth):
+        return (self._state_cache_key(game.state), root_player_id, current_player_id, depth)
+
+    @staticmethod
+    def _state_cache_key(state):
+        """状態を探索用の再現可能な値へ変換する。"""
+        def freeze(value):
+            if value is None or isinstance(value, (bool, int, float, str, bytes)):
+                return value
+            if isinstance(value, tuple):
+                return ("tuple", tuple(freeze(item) for item in value))
+            if isinstance(value, list):
+                return ("list", tuple(freeze(item) for item in value))
+            if isinstance(value, dict):
+                items = [(freeze(key), freeze(item)) for key, item in value.items()]
+                return ("dict", tuple(sorted(items, key=repr)))
+            if isinstance(value, set):
+                return ("set", tuple(sorted((freeze(item) for item in value), key=repr)))
+            if hasattr(value, "__dict__"):
+                cls = type(value)
+                attrs = tuple(sorted((key, freeze(item)) for key, item in value.__dict__.items()))
+                return ("object", f"{cls.__module__}.{cls.__qualname__}", attrs)
+            return ("repr", repr(value))
+
+        return freeze(state)
+
+    def _chance_cache_key(self, node_type, game, player_id, depth, action=None):
+        action_key = None
+        if action is not None:
+            action_key = (
+                action.action_type.value,
+                action.target,
+                action.card_id,
+            )
+        return (
+            "chance",
+            node_type,
+            self._state_cache_key(game.state),
+            player_id,
+            depth,
+            self.round_roll_samples,
+            action_key,
+        )
+
     def _search_node(self, game, root_player_id, current_player_id, depth, alpha, beta) -> float:
+        cache_key = None
+        use_cache = alpha == float("-inf") and beta == float("inf")
+        if use_cache:
+            cache_key = self._search_cache_key(game, root_player_id, current_player_id, depth)
+            cached = self._search_cache.get(cache_key)
+            if cached is not None:
+                self.last_search_cache_hits += 1
+                return cached
         if self.last_search_nodes >= self.max_search_nodes:
             return evaluate_state(game.state, root_player_id)
         self.last_search_nodes += 1
         if depth <= 0 or game.state.game_over:
-            return evaluate_state(game.state, root_player_id)
+            value = evaluate_state(game.state, root_player_id)
+            if use_cache:
+                self._search_cache[cache_key] = value
+            return value
 
         legal_actions = game.get_legal_actions(current_player_id)
         if not legal_actions:
-            return evaluate_state(game.state, root_player_id)
+            value = evaluate_state(game.state, root_player_id)
+            if use_cache:
+                self._search_cache[cache_key] = value
+            return value
 
         if getattr(game.state, "phase", None) is GamePhase.ROLL:
             legal_actions = self._rank_reroll_actions(
@@ -205,19 +289,17 @@ class CpuPlayer:
                     alpha = max(alpha, value)
                     if alpha >= beta:
                         break
-                return value
-            value = float("inf")
-            for action in legal_actions:
-                value = min(
-                    value,
-                    self._evaluate_reroll_action(game, root_player_id, action, depth),
-                )
-                beta = min(beta, value)
-                if alpha >= beta:
-                    break
-            return value
-
-        if current_player_id == root_player_id:
+            else:
+                value = float("inf")
+                for action in legal_actions:
+                    value = min(
+                        value,
+                        self._evaluate_reroll_action(game, root_player_id, action, depth),
+                    )
+                    beta = min(beta, value)
+                    if alpha >= beta:
+                        break
+        elif current_player_id == root_player_id:
             value = float("-inf")
             for action in legal_actions:
                 value = max(
@@ -234,24 +316,26 @@ class CpuPlayer:
                 alpha = max(alpha, value)
                 if alpha >= beta:
                     break
-            return value
+        else:
+            value = float("inf")
+            for action in legal_actions:
+                value = min(
+                    value,
+                    self._search_node(
+                        simulate_action(game, action),
+                        root_player_id,
+                        1 - current_player_id,
+                        depth - 1,
+                        alpha,
+                        beta,
+                    ),
+                )
+                beta = min(beta, value)
+                if alpha >= beta:
+                    break
 
-        value = float("inf")
-        for action in legal_actions:
-            value = min(
-                value,
-                self._search_node(
-                    simulate_action(game, action),
-                    root_player_id,
-                    1 - current_player_id,
-                    depth - 1,
-                    alpha,
-                    beta,
-                ),
-            )
-            beta = min(beta, value)
-            if alpha >= beta:
-                break
+        if use_cache:
+            self._search_cache[cache_key] = value
         return value
 
     @classmethod
@@ -314,9 +398,7 @@ class CpuPlayer:
             matching = sum(
                 1 for dice_type in selected if dice_type is target_dice_type
             )
-            omni = sum(
-                1 for dice_type in selected if dice_type is DiceType.OMNI
-            )
+            omni = sum(1 for dice_type in selected if dice_type is DiceType.OMNI)
             return (non_matching, -matching, -omni)
 
         candidates = sorted(
