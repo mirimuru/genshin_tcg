@@ -1,7 +1,7 @@
 from engine.actions import Action, ActionType
 from engine.dice import DiceType
 from engine.evaluation import evaluate_state
-from engine.simulation import simulate_action
+from engine.simulation import expected_value, simulate_action, simulate_roll
 from engine.state import GamePhase
 
 
@@ -81,6 +81,29 @@ class CpuPlayer:
             player_id,
             1 - player_id,
             depth - 1,
+        )
+
+    def _evaluate_chance_roll(self, game, player_id, depth=None) -> float:
+        """ダイスロールをChance Nodeとして展開し、各結果の期待評価値を返す。"""
+        if depth is None:
+            depth = self.search_depth
+        if depth <= 0 or game.state.game_over:
+            return evaluate_state(game.state, player_id)
+
+        outcomes = simulate_roll(game, player_id)
+        if not outcomes:
+            return evaluate_state(game.state, player_id)
+
+        return expected_value(
+            outcomes,
+            lambda outcome: self._search_node(
+                outcome,
+                player_id,
+                player_id,
+                depth - 1,
+                float("-inf"),
+                float("inf"),
+            ),
         )
 
     def _search_value(self, game, root_player_id, current_player_id, depth, alpha=float("-inf"), beta=float("inf")) -> float:
