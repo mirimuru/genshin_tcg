@@ -1,7 +1,8 @@
 from types import SimpleNamespace
 
 from engine.actions import Action, ActionType
-from engine.dice import DiceType\nfrom engine.state import Element
+from engine.dice import DiceType
+from engine.state import Element
 from engine.simulation import ChanceOutcome
 from players.cpu import CpuPlayer
 
@@ -10,7 +11,12 @@ def test_cpu_chooses_reroll_by_expected_chance_value(monkeypatch):
     game = SimpleNamespace(
         state=SimpleNamespace(
             phase=__import__("engine.state", fromlist=["GamePhase"]).GamePhase.ROLL,
-            players=[SimpleNamespace(active_character=SimpleNamespace(element=Element.PYRO)), SimpleNamespace()],
+            players=[
+                SimpleNamespace(
+                    active_character=SimpleNamespace(element=Element.PYRO)
+                ),
+                SimpleNamespace(),
+            ],
         )
     )
     keep = Action(0, ActionType.REROLL_DICE, target=())
