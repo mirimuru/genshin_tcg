@@ -16,9 +16,12 @@ class SwordCharacter(PublicCharacterDefinition):
     elemental_skill_cost = {DiceType.PYRO: 3}
 
 
+SWORD_CHARACTER = SwordCharacter()
+
+
 def make_game():
     players = [
-        PlayerState(0, [SwordCharacter.create_state(), CharacterState("B", Element.HYDRO), CharacterState("C", Element.CRYO)]),
+        PlayerState(0, [SWORD_CHARACTER.create_state(), CharacterState("B", Element.HYDRO), CharacterState("C", Element.CRYO)]),
         PlayerState(1, [CharacterState("X", Element.PYRO), CharacterState("Y", Element.HYDRO), CharacterState("Z", Element.GEO)]),
     ]
     game = Game(GameState(players))
