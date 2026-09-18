@@ -33,10 +33,10 @@ def test_sacrificial_sword_has_matching_weapon_type_and_cost():
     card = SacrificialSword()
     game = make_game()
     game.card_registry.register(card)
-    game.state.players[0].dice = DicePool({DiceType.PYRO: 2})
+    game.state.players[0].dice = DicePool({DiceType.PYRO: 3})
 
     assert card.can_play(game, 0)
-    assert game.get_action_cost(Action(0, ActionType.PLAY_CARD, card_id=card.card_id)) == {DiceType.PYRO: 2}
+    assert game.get_action_cost(Action(0, ActionType.PLAY_CARD, card_id=card.card_id)) == {DiceType.PYRO: 3}
 
 
 def test_sacrificial_sword_reduces_next_skill_cost_after_skill():
