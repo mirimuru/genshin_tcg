@@ -105,7 +105,12 @@ class WeaponCardDefinition(CardDefinition):
         }.get(character_element)
         if dice_type is None:
             raise ValueError("武器カードのコストを解決できない元素です")
-        return {dice_type: 2}
+
+        # 武器カード定義のコストをそのまま使用し、ANYコストを装備者の
+        # 元素ダイスへ変換する。これにより星3通常武器の2個だけでなく、
+        # 祭礼の剣のような3個コストの武器にも対応できる。
+        total_cost = sum(self.cost.values())
+        return {dice_type: total_cost}
 
     def can_play(self, game, player_id: int, target=None) -> bool:
         if not super().can_play(game, player_id, target):
