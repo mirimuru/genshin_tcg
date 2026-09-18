@@ -136,7 +136,7 @@ class CpuPlayer:
         if not legal_actions:
             return evaluate_state(game.state, root_player_id)
 
-        if game.state.phase is GamePhase.ROLL:
+        if getattr(game.state, "phase", None) is GamePhase.ROLL:
             if current_player_id == root_player_id:
                 value = float("-inf")
                 for action in legal_actions:
