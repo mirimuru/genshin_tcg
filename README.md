@@ -41,7 +41,7 @@
 | ダイスロールの確率結果列挙 | 実装済み |
 | ゲーム状態のダイスロールChance Node化 | 実装済み |
 | CPUによるダイスChance Node期待値評価 | 実装済み |
-| 確率的Game結果をCPU探索へ統合 | 実装中 |
+| 確率的Game結果をCPU探索へ統合 | 実装済み（ダイスロール・リロール・次ラウンドロール） |
 | GUI・対戦画面 | 未実装 |
 
 ## キャラクターDefinition
@@ -129,7 +129,7 @@
 
 探索では指定したCPUプレイヤーの評価視点を末端まで固定します。これにより、相手側の評価値をそのまま最大化する誤りを避けています。
 
-確率結果の共通基盤として `ChanceOutcome` / `expected_value()` を追加し、さらに実際のダイスロールを `simulate_roll()` から確率的Game状態へ展開できるようにしました。現在は `CpuPlayer._evaluate_chance_roll()` が各ダイス結果を探索へ渡し、確率で重み付けした期待評価値を計算できます。さらに、リロールActionも `simulate_reroll()` によってChance Node化し、CPUが複数のリロール候補を期待値で比較できます。これにより、確定的なminimax評価と確率的なChance Node評価を同じ探索基盤上で扱える状態になっています。
+確率結果の共通基盤として `ChanceOutcome` / `expected_value()` を追加し、さらに実際のダイスロールを `simulate_roll()` から確率的Game状態へ展開できるようにしました。現在は `CpuPlayer._evaluate_chance_roll()` が各ダイス結果を探索へ渡し、確率で重み付けした期待評価値を計算できます。さらに、リロールActionも `simulate_reroll()` によってChance Node化し、CPUが複数のリロール候補を期待値で比較できます。次ラウンド開始時の両プレイヤーのダイス生成についても `simulate_round_roll()` で完全な確率結果を列挙でき、CPU探索では `sample_round_roll()` による固定seedの有界サンプリングを利用します。これにより、次ラウンドへの確率遷移を探索へ接続しつつ、8個のダイスを両者同時に完全列挙した際の巨大な分岐数を抑えています。
 
 ## ラウンド進行
 
@@ -148,9 +148,9 @@ python -m pytest
 
 ## 今後の予定
 
-1. Chance NodeをCPUの実際のAction探索フローへ統合する
-2. 確率結果を含むexpectimax系探索を実装する
-3. リロールの確率結果もChance Nodeへ接続する
+1. 次ラウンドのダイスChance NodeをCPU探索へ統合する
+2. End Round → 次ラウンドRoll → Reroll → Actionまでのexpectimax系探索を深く接続する
+3. Chance Nodeのキャッシュ・トランスポジションを実装して探索性能を改善する
 4. 探索性能を改善し、深い探索を安定して実行できるようにする
 5. 武器・聖遺物・Target付きカードを増やす
 6. 各カード・キャラクターのルール実装範囲を拡張する
