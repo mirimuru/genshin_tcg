@@ -111,15 +111,27 @@ class CpuPlayer:
             return evaluate_state(game.state, root_player_id)
         return expected_value(
             outcomes,
-            lambda outcome: self._search_node(
+            lambda outcome: self._evaluate_reroll_outcome(
                 outcome.state,
                 root_player_id,
-                outcome.state.current_player,
+                depth,
+            ),
+        )
+
+    def _evaluate_reroll_outcome(self, state, root_player_id, depth):
+        """リロール結果を探索する。軽量なテスト状態にも対応する。"""
+        if hasattr(state, "state"):
+            current_player_id = getattr(state.state, "current_player", root_player_id)
+            return self._search_node(
+                state,
+                root_player_id,
+                current_player_id,
                 depth - 1,
                 float("-inf"),
                 float("inf"),
-            ),
-        )
+            )
+
+        return evaluate_state(state, root_player_id)
 
     def _search_value(self, game, root_player_id, current_player_id, depth, alpha=float("-inf"), beta=float("inf")) -> float:
         self.last_search_nodes = 0
