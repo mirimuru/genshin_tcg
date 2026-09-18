@@ -50,11 +50,12 @@ def test_search_cache_key_changes_when_state_changes():
     assert cpu._search_cache_key(game_a, 0, 1, 2) != cpu._search_cache_key(game_b, 0, 1, 2)
 
 
-def test_search_cache_is_cleared_for_each_root_search():
+def test_search_cache_is_cleared_for_each_root_search(monkeypatch):
     state = SimpleNamespace(game_over=False, phase=SimpleNamespace(value="action"))
     game = FakeGame(state)
     cpu = CpuPlayer(search_depth=2)
 
+    monkeypatch.setattr("players.cpu.evaluate_state", lambda _state, _player_id: 0.0)
     cpu._search_cache[("stale",)] = 99.0
     cpu._search_value(game, 0, 1, 0)
 
