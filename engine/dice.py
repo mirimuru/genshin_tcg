@@ -1,6 +1,8 @@
 import random
 from collections import Counter
 from enum import Enum
+from itertools import combinations_with_replacement
+from math import factorial
 from typing import Mapping
 
 
@@ -57,9 +59,52 @@ class DicePool:
         rolled = Counter(chooser.choice(cls.ROLLABLE_DICE_TYPES) for _ in range(count))
         return cls(rolled)
 
+    @classmethod
+    def roll_outcomes(
+        cls,
+        count: int = DEFAULT_DICE,
+        dice_types: tuple[DiceType, ...] | list[DiceType] | None = None,
+    ) -> list[tuple["DicePool", float]]:
+        """指定個数のダイスロールについて、重複をまとめた全確率結果を返す。
+
+        通常の ``roll`` と違って乱数を使用しないため、CPUのChance Nodeで
+        ダイスロールを決定論的に展開できる。
+        """
+        if count < 0:
+            raise ValueError("dice count must not be negative")
+        types = tuple(cls.ROLLABLE_DICE_TYPES if dice_types is None else dice_types)
+        if not types:
+            raise ValueError("dice_types must not be empty")
+        if any(not isinstance(dice_type, DiceType) for dice_type in types):
+            raise TypeError("dice_types must contain DiceType values")
+        if len(set(types)) != len(types):
+            raise ValueError("dice_types must not contain duplicates")
+
+        side_count = len(types)
+        denominator = side_count ** count
+        outcomes: list[tuple[DicePool, float]] = []
+        for combination in combinations_with_replacement(types, count):
+            counts = Counter(combination)
+            multiplicity = factorial(count)
+            for value in counts.values():
+                multiplicity //= factorial(value)
+            outcomes.append((cls(counts), multiplicity / denominator))
+        return outcomes
+
     @property
     def total(self) -> int:
         return sum(self._dice.values())
+
+    def __len__(self) -> int:
+        return self.total
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, DicePool):
+            return NotImplemented
+        return self._dice == other._dice
+
+    def __repr__(self) -> str:
+        return f"DicePool({dict(self._dice)!r})"
 
     def count(self, dice_type: DiceType) -> int:
         return self._dice[dice_type]
