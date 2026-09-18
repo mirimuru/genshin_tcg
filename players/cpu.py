@@ -1,3 +1,5 @@
+from enum import Enum
+
 from engine.actions import Action, ActionType
 from engine.dice import DiceType
 from engine.evaluation import evaluate_state
@@ -213,6 +215,9 @@ class CpuPlayer:
         def freeze(value):
             if value is None or isinstance(value, (bool, int, float, str, bytes)):
                 return value
+            if isinstance(value, Enum):
+                cls = type(value)
+                return ("enum", f"{cls.__module__}.{cls.__qualname__}", value.name)
             if isinstance(value, tuple):
                 return ("tuple", tuple(freeze(item) for item in value))
             if isinstance(value, list):
