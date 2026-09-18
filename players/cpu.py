@@ -78,14 +78,7 @@ class CpuPlayer:
         outcomes = sample_round_roll(game)
         return expected_value(
             outcomes,
-            lambda state: self._search_node(
-                state,
-                player_id,
-                state.state.current_player,
-                depth,
-                float("-inf"),
-                float("inf"),
-            ),
+            lambda state: evaluate_state(state.state, player_id),
         )
 
     def _evaluate_chance_roll(self, game, player_id, depth=None) -> float:
