@@ -1,7 +1,7 @@
 from engine.actions import Action, ActionType
 from engine.dice import DiceType
 from engine.evaluation import evaluate_state
-from engine.simulation import expected_value, simulate_action, simulate_reroll, simulate_roll
+from engine.simulation import expected_value, sample_round_roll, simulate_action, simulate_reroll, simulate_roll
 from engine.state import GamePhase
 
 
@@ -58,7 +58,35 @@ class CpuPlayer:
             depth = self.search_depth
         simulated_game = simulate_action(game, action)
         self.last_search_nodes = 0
+        if (
+            action.action_type is ActionType.END_ROUND
+            and simulated_game.state.phase is GamePhase.ROLL
+        ):
+            return self._evaluate_round_roll(simulated_game, player_id, depth - 1)
         return self._search_value(simulated_game, player_id, 1 - player_id, depth - 1)
+
+    def _evaluate_round_roll(self, game, player_id, depth) -> float:
+        """次ラウンドの両者のダイス生成をChance Nodeとして評価する。
+
+        8個×2人の全組合せは巨大になるため、CPU探索では固定seedの
+        有界サンプリングを使う。ルール上のダイス分布自体は
+        simulate_round_roll で完全列挙できる。
+        """
+        if depth <= 0 or game.state.game_over:
+            return evaluate_state(game.state, player_id)
+
+        outcomes = sample_round_roll(game)
+        return expected_value(
+            outcomes,
+            lambda state: self._search_node(
+                state,
+                player_id,
+                state.state.current_player,
+                depth,
+                float("-inf"),
+                float("inf"),
+            ),
+        )
 
     def _evaluate_chance_roll(self, game, player_id, depth=None) -> float:
         """ダイスロールをChance Nodeとして展開し、各結果の期待評価値を返す。"""
