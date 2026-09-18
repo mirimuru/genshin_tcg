@@ -27,9 +27,11 @@ def test_search_cache_reuses_identical_state(monkeypatch):
     monkeypatch.setattr("players.cpu.evaluate_state", lambda _state, _player_id: 42.0)
 
     cpu = CpuPlayer(search_depth=2)
-    first = cpu._search_value(game, 0, 1, 1)
+    cpu._search_cache.clear()
+    cpu.last_search_nodes = 0
+    first = cpu._search_node(game, 0, 1, 1, float("-inf"), float("inf"))
     first_calls = len(calls)
-    second = cpu._search_value(game, 0, 1, 1)
+    second = cpu._search_node(game, 0, 1, 1, float("-inf"), float("inf"))
 
     assert first == second == 42.0
     assert first_calls == 1
