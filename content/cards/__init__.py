@@ -24,9 +24,21 @@ from content.cards.talents import (
     ColdBloodedStrikeStatus,
 )
 from content.cards.weapons import (
+    MAGIC_GUIDE,
+    RAVEN_BOW,
     TRAVELER_HANDY_SWORD,
+    WHITE_IRON_GREATSWORD,
+    WHITE_TASSEL,
+    MagicGuide,
+    MagicGuideStatus,
+    RavenBow,
+    RavenBowStatus,
     TravelerHandySword,
     TravelerHandySwordStatus,
+    WhiteIronGreatsword,
+    WhiteIronGreatswordStatus,
+    WhiteTassel,
+    WhiteTasselStatus,
 )
 
 __all__ = [
@@ -50,4 +62,16 @@ __all__ = [
     "TRAVELER_HANDY_SWORD",
     "TravelerHandySword",
     "TravelerHandySwordStatus",
+    "WHITE_IRON_GREATSWORD",
+    "WhiteIronGreatsword",
+    "WhiteIronGreatswordStatus",
+    "WHITE_TASSEL",
+    "WhiteTassel",
+    "WhiteTasselStatus",
+    "RAVEN_BOW",
+    "RavenBow",
+    "RavenBowStatus",
+    "MAGIC_GUIDE",
+    "MagicGuide",
+    "MagicGuideStatus",
 ]
