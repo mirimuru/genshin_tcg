@@ -1,11 +1,12 @@
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Callable, Generic, TypeVar
+from collections import Counter
 
-from engine.actions import Action
+from engine.actions import Action, ActionType
 from engine.dice import DicePool
 from engine.game import Game
-from engine.state import GameState
+from engine.state import GamePhase, GameState
 
 
 StateT = TypeVar("StateT")
@@ -84,6 +85,66 @@ def simulate_roll(game: Game, player_id: int, count: int | None = None) -> list[
         )
         for dice_pool, probability in outcomes
     ]
+
+
+def simulate_reroll(game: Game, action: Action) -> list[ChanceOutcome[Game]]:
+    """リロールActionを乱数なしのChance Nodeへ展開する。
+
+    選択されていないダイスは保持し、選択された個数だけを全確率結果へ
+    置き換える。元のGameは変更せず、各結果は独立したGameとなる。
+    """
+    if not isinstance(game, Game):
+        raise TypeError("game must be Game")
+    if not isinstance(action, Action):
+        raise TypeError("action must be Action")
+    if action.action_type is not ActionType.REROLL_DICE:
+        raise ValueError("action must be REROLL_DICE")
+    player_id = action.player_id
+    if player_id not in (0, 1):
+        raise ValueError("invalid player_id")
+    if game.state.phase is not GamePhase.ROLL:
+        raise ValueError("reroll simulation requires ROLL phase")
+    if player_id != game.state.current_player:
+        raise ValueError("action player is not current player")
+    if game.state.players[player_id].has_rerolled:
+        raise ValueError("player has already rerolled")
+    if not isinstance(action.target, tuple):
+        raise ValueError("reroll target must be a tuple")
+
+    selected = Counter(action.target)
+    player = game.state.players[player_id]
+    original = player.dice.as_list()
+    if any(dice_type not in DicePool.ROLLABLE_DICE_TYPES for dice_type in selected):
+        raise ValueError("reroll target contains invalid dice")
+    if any(player.dice.count(dice_type) < count for dice_type, count in selected.items()):
+        raise ValueError("reroll target exceeds owned dice")
+
+    selected_count = sum(selected.values())
+    kept = Counter(original)
+    kept.subtract(selected)
+    if any(count < 0 for count in kept.values()):
+        raise ValueError("reroll target exceeds owned dice")
+
+    outcomes = DicePool.roll_outcomes(selected_count)
+    result = []
+    for rolled_pool, probability in outcomes:
+        dice = DicePool(kept)
+        for dice_type, count in rolled_pool._dice.items():
+            dice.add(dice_type, count)
+        simulated = copy_game(game)
+        simulated.state.players[player_id].dice = dice
+        simulated.state.players[player_id].has_rerolled = True
+
+        opponent_id = 1 - player_id
+        opponent = simulated.state.players[opponent_id]
+        if opponent.has_rerolled:
+            simulated.state.phase = GamePhase.ACTION
+            simulated.state.current_player = 0
+        else:
+            simulated.state.current_player = opponent_id
+
+        result.append(ChanceOutcome(simulated, probability))
+    return result
 
 
 def _game_with_dice(game: Game, player_id: int, dice_pool: DicePool) -> Game:

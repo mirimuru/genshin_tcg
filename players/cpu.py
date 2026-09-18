@@ -1,7 +1,7 @@
 from engine.actions import Action, ActionType
 from engine.dice import DiceType
 from engine.evaluation import evaluate_state
-from engine.simulation import expected_value, simulate_action, simulate_roll
+from engine.simulation import expected_value, simulate_action, simulate_reroll, simulate_roll
 from engine.state import GamePhase
 
 
@@ -11,6 +11,7 @@ class CpuPlayer:
     LOW_HP_THRESHOLD = 3
     SEARCH_DEPTH = 2
     DEFAULT_MAX_SEARCH_NODES = 10_000
+    MAX_REROLL_CANDIDATES = 16
     ACTION_TIE_BREAK = {
         ActionType.ELEMENTAL_BURST: 4,
         ActionType.ELEMENTAL_SKILL: 3,
@@ -37,6 +38,7 @@ class CpuPlayer:
             return Action(player_id, ActionType.END_ROUND)
         if game.state.phase is GamePhase.ROLL:
             return self._choose_reroll(game, player_id, legal_actions)
+
         switch_actions = [a for a in legal_actions if a.action_type is ActionType.SWITCH_CHARACTER]
         player = game.state.players[player_id]
         if player.requires_switch and switch_actions:
@@ -75,24 +77,49 @@ class CpuPlayer:
     def _evaluate_chance_outcome(self, game, player_id, depth):
         """ChanceOutcome後のGameを探索し、直接評価可能な状態にも対応する。"""
         if hasattr(game, "state"):
+            current_player_id = getattr(game.state, "current_player", player_id)
             return self._search_node(
-                game, player_id, player_id, depth - 1,
-                float("-inf"), float("inf"),
+                game,
+                player_id,
+                current_player_id,
+                depth - 1,
+                float("-inf"),
+                float("inf"),
             )
 
         if hasattr(game, "value"):
-            # 実際のChanceOutcomeはGameを保持するが、評価関数の単体テストでは
-            # GameState相当の直接評価オブジェクトを利用できるようにする。
-            # _search_nodeが差し替えられている場合は、その探索契約を優先する。
             search_node = getattr(self, "_search_node")
             if getattr(search_node, "__func__", None) is not CpuPlayer._search_node:
                 return search_node(
-                    game, player_id, player_id, depth - 1,
-                    float("-inf"), float("inf"),
+                    game,
+                    player_id,
+                    player_id,
+                    depth - 1,
+                    float("-inf"),
+                    float("inf"),
                 )
             return evaluate_state(game, player_id)
 
         return evaluate_state(game.state, player_id)
+
+    def _evaluate_reroll_action(self, game, root_player_id, action, depth) -> float:
+        """リロールActionをChance Nodeとして展開し、結果の期待値を返す。"""
+        if depth <= 0:
+            return evaluate_state(game.state, root_player_id)
+        outcomes = simulate_reroll(game, action)
+        if not outcomes:
+            return evaluate_state(game.state, root_player_id)
+        return expected_value(
+            outcomes,
+            lambda outcome: self._search_node(
+                outcome.state,
+                root_player_id,
+                outcome.state.state.current_player,
+                depth - 1,
+                float("-inf"),
+                float("inf"),
+            ),
+        )
 
     def _search_value(self, game, root_player_id, current_player_id, depth, alpha=float("-inf"), beta=float("inf")) -> float:
         self.last_search_nodes = 0
@@ -104,20 +131,66 @@ class CpuPlayer:
         self.last_search_nodes += 1
         if depth <= 0 or game.state.game_over:
             return evaluate_state(game.state, root_player_id)
+
         legal_actions = game.get_legal_actions(current_player_id)
         if not legal_actions:
             return evaluate_state(game.state, root_player_id)
+
+        if game.state.phase is GamePhase.ROLL:
+            if current_player_id == root_player_id:
+                value = float("-inf")
+                for action in legal_actions:
+                    value = max(
+                        value,
+                        self._evaluate_reroll_action(game, root_player_id, action, depth),
+                    )
+                    alpha = max(alpha, value)
+                    if alpha >= beta:
+                        break
+                return value
+            value = float("inf")
+            for action in legal_actions:
+                value = min(
+                    value,
+                    self._evaluate_reroll_action(game, root_player_id, action, depth),
+                )
+                beta = min(beta, value)
+                if alpha >= beta:
+                    break
+            return value
+
         if current_player_id == root_player_id:
             value = float("-inf")
             for action in legal_actions:
-                value = max(value, self._search_node(simulate_action(game, action), root_player_id, 1 - current_player_id, depth - 1, alpha, beta))
+                value = max(
+                    value,
+                    self._search_node(
+                        simulate_action(game, action),
+                        root_player_id,
+                        1 - current_player_id,
+                        depth - 1,
+                        alpha,
+                        beta,
+                    ),
+                )
                 alpha = max(alpha, value)
                 if alpha >= beta:
                     break
             return value
+
         value = float("inf")
         for action in legal_actions:
-            value = min(value, self._search_node(simulate_action(game, action), root_player_id, 1 - current_player_id, depth - 1, alpha, beta))
+            value = min(
+                value,
+                self._search_node(
+                    simulate_action(game, action),
+                    root_player_id,
+                    1 - current_player_id,
+                    depth - 1,
+                    alpha,
+                    beta,
+                ),
+            )
             beta = min(beta, value)
             if alpha >= beta:
                 break
@@ -146,14 +219,43 @@ class CpuPlayer:
                 break
         return value
 
-    @staticmethod
-    def _choose_reroll(game, player_id, legal_actions) -> Action:
-        player = game.state.players[player_id]
-        target_dice = game._element_to_dice_type(player.active_character.element)
-        def score(action):
+    def _choose_reroll(self, game, player_id, legal_actions) -> Action:
+        """期待値を比較してリロールを選択する。
+
+        全256マスクをそのまま完全展開すると分岐数が急増するため、
+        従来の元素一致ヒューリスティック上位候補をChance Node評価する。
+        """
+        def heuristic(action):
             selected = action.target or ()
-            return sum(1 for dice_type in selected if dice_type not in (DiceType.OMNI, target_dice))
-        return max(legal_actions, key=score)
+            return sum(
+                1
+                for dice_type in selected
+                if dice_type not in (DiceType.OMNI, self._target_dice_type(game, player_id))
+            )
+
+        candidates = sorted(
+            legal_actions,
+            key=lambda action: (
+                heuristic(action),
+                len(action.target or ()),
+            ),
+            reverse=True,
+        )[: self.MAX_REROLL_CANDIDATES]
+
+        return max(
+            candidates,
+            key=lambda action: (
+                self._evaluate_reroll_action(game, player_id, action, self.search_depth),
+                heuristic(action),
+                len(action.target or ()),
+            ),
+        )
+
+    @staticmethod
+    def _target_dice_type(game, player_id):
+        return game._element_to_dice_type(
+            game.state.players[player_id].active_character.element
+        )
 
     @staticmethod
     def _best_switch_action(player, actions):

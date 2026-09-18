@@ -129,7 +129,7 @@
 
 探索では指定したCPUプレイヤーの評価視点を末端まで固定します。これにより、相手側の評価値をそのまま最大化する誤りを避けています。
 
-確率結果の共通基盤として `ChanceOutcome` / `expected_value()` を追加し、さらに実際のダイスロールを `simulate_roll()` から確率的Game状態へ展開できるようにしました。現在は `CpuPlayer._evaluate_chance_roll()` が各ダイス結果を探索へ渡し、確率で重み付けした期待評価値を計算できます。これにより、確定的なminimax評価と確率的なChance Node評価を同じ探索基盤上で扱える状態になっています。
+確率結果の共通基盤として `ChanceOutcome` / `expected_value()` を追加し、さらに実際のダイスロールを `simulate_roll()` から確率的Game状態へ展開できるようにしました。現在は `CpuPlayer._evaluate_chance_roll()` が各ダイス結果を探索へ渡し、確率で重み付けした期待評価値を計算できます。さらに、リロールActionも `simulate_reroll()` によってChance Node化し、CPUが複数のリロール候補を期待値で比較できます。これにより、確定的なminimax評価と確率的なChance Node評価を同じ探索基盤上で扱える状態になっています。
 
 ## ラウンド進行
 
