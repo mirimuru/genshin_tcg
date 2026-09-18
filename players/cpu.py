@@ -111,8 +111,8 @@ class CpuPlayer:
             return evaluate_state(game.state, root_player_id)
         return expected_value(
             outcomes,
-            lambda outcome: self._evaluate_reroll_outcome(
-                outcome.state,
+            lambda state: self._evaluate_reroll_outcome(
+                state,
                 root_player_id,
                 depth,
             ),
@@ -237,20 +237,22 @@ class CpuPlayer:
         全256マスクをそのまま完全展開すると分岐数が急増するため、
         従来の元素一致ヒューリスティック上位候補をChance Node評価する。
         """
+        target_dice_type = self._target_dice_type(game, player_id)
+
         def heuristic(action):
             selected = action.target or ()
-            return sum(
+            non_matching = sum(
                 1
                 for dice_type in selected
-                if dice_type not in (DiceType.OMNI, self._target_dice_type(game, player_id))
+                if dice_type not in (DiceType.OMNI, target_dice_type)
             )
+            matching = sum(1 for dice_type in selected if dice_type is target_dice_type)
+            omni = sum(1 for dice_type in selected if dice_type is DiceType.OMNI)
+            return (non_matching, -matching, -omni)
 
         candidates = sorted(
             legal_actions,
-            key=lambda action: (
-                heuristic(action),
-                len(action.target or ()),
-            ),
+            key=lambda action: heuristic(action),
             reverse=True,
         )[: self.MAX_REROLL_CANDIDATES]
 
@@ -259,7 +261,6 @@ class CpuPlayer:
             key=lambda action: (
                 self._evaluate_reroll_action(game, player_id, action, self.search_depth),
                 heuristic(action),
-                len(action.target or ()),
             ),
         )
 
