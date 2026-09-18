@@ -188,6 +188,11 @@ class CpuPlayer:
             return evaluate_state(game.state, root_player_id)
 
         if getattr(game.state, "phase", None) is GamePhase.ROLL:
+            legal_actions = self._rank_reroll_actions(
+                game,
+                current_player_id,
+                legal_actions,
+            )
             if current_player_id == root_player_id:
                 value = float("-inf")
                 for action in legal_actions:
@@ -269,6 +274,25 @@ class CpuPlayer:
             if alpha >= beta:
                 break
         return value
+
+    def _rank_reroll_actions(self, game, player_id, legal_actions):
+        """探索中のリロール分岐を上位候補へ制限する。"""
+        target_dice_type = self._target_dice_type(game, player_id)
+
+        def heuristic(action):
+            selected = action.target or ()
+            non_matching = sum(
+                1
+                for dice_type in selected
+                if dice_type not in (DiceType.OMNI, target_dice_type)
+            )
+            matching = sum(
+                1 for dice_type in selected if dice_type is target_dice_type
+            )
+            omni = sum(1 for dice_type in selected if dice_type is DiceType.OMNI)
+            return (non_matching, -matching, -omni)
+
+        return sorted(legal_actions, key=heuristic, reverse=True)[: self.MAX_REROLL_CANDIDATES]
 
     def _choose_reroll(self, game, player_id, legal_actions) -> Action:
         """期待値を比較してリロールを選択する。
