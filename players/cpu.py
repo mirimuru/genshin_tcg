@@ -12,6 +12,7 @@ class CpuPlayer:
     SEARCH_DEPTH = 2
     DEFAULT_MAX_SEARCH_NODES = 10_000
     MAX_REROLL_CANDIDATES = 16
+    ROUND_ROLL_SAMPLES = 64
     ACTION_TIE_BREAK = {
         ActionType.ELEMENTAL_BURST: 4,
         ActionType.ELEMENTAL_SKILL: 3,
@@ -22,9 +23,10 @@ class CpuPlayer:
         ActionType.END_ROUND: -1,
     }
 
-    def __init__(self, search_depth=None, max_search_nodes=None):
+    def __init__(self, search_depth=None, max_search_nodes=None, round_roll_samples=None):
         self.search_depth = self.SEARCH_DEPTH if search_depth is None else search_depth
         self.max_search_nodes = self.DEFAULT_MAX_SEARCH_NODES if max_search_nodes is None else max_search_nodes
+        self.round_roll_samples = self.ROUND_ROLL_SAMPLES if round_roll_samples is None else round_roll_samples
         if self.search_depth <= 0:
             raise ValueError("search_depth must be positive")
         if self.max_search_nodes <= 0:
@@ -75,10 +77,28 @@ class CpuPlayer:
         if depth <= 0 or game.state.game_over:
             return evaluate_state(game.state, player_id)
 
-        outcomes = sample_round_roll(game)
+        outcomes = sample_round_roll(game, samples=self.round_roll_samples)
         return expected_value(
             outcomes,
-            lambda state: evaluate_state(state.state, player_id),
+            lambda state: self._evaluate_round_roll_outcome(
+                state,
+                player_id,
+                depth,
+            ),
+        )
+
+    def _evaluate_round_roll_outcome(self, game, root_player_id, depth) -> float:
+        """次ラウンドRoll後のROLL/Reroll/Actionを探索する。"""
+        if depth <= 0 or getattr(getattr(game, "state", None), "game_over", False):
+            return evaluate_state(game.state, root_player_id)
+        current_player_id = getattr(game.state, "current_player", root_player_id)
+        return self._search_node(
+            game,
+            root_player_id,
+            current_player_id,
+            depth - 1,
+            float("-inf"),
+            float("inf"),
         )
 
     def _evaluate_chance_roll(self, game, player_id, depth=None) -> float:
