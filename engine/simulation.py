@@ -9,6 +9,7 @@ from engine.state import GameState
 
 
 StateT = TypeVar("StateT")
+DEFAULT_ROLL_DICE = DicePool.DEFAULT_DICE
 
 
 @dataclass(frozen=True)
@@ -71,7 +72,7 @@ def simulate_roll(game: Game, player_id: int, count: int | None = None) -> list[
     if player_id not in (0, 1):
         raise ValueError("player_id must be 0 or 1")
     if count is None:
-        count = DicePool.DEFAULT_DICE
+        count = DEFAULT_ROLL_DICE
     if count < 0:
         raise ValueError("dice count must not be negative")
 
