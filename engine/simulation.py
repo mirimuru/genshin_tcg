@@ -110,8 +110,8 @@ def simulate_round_roll(
     for first_dice, first_probability in player_outcomes:
         for second_dice, second_probability in player_outcomes:
             simulated = copy_game(game)
-            simulated.state.players[0].dice = first_dice
-            simulated.state.players[1].dice = second_dice
+            simulated.state.players[0].dice = DicePool(first_dice._dice)
+            simulated.state.players[1].dice = DicePool(second_dice._dice)
             simulated.state.players[0].has_rerolled = False
             simulated.state.players[1].has_rerolled = False
             simulated.state.phase = GamePhase.ROLL
