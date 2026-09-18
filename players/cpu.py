@@ -73,12 +73,16 @@ class CpuPlayer:
         )
 
     def _evaluate_chance_outcome(self, game, player_id, depth):
-        """ChanceOutcome後の通常Gameと、テスト用の直接評価可能な状態を扱う。"""
+        """ChanceOutcome後のGameを探索し、テスト用の直接評価状態にも対応する。"""
         if hasattr(game, "state"):
             return self._search_node(
                 game, player_id, player_id, depth - 1,
                 float("-inf"), float("inf"),
             )
+
+        # Chance Nodeの単体テストなどでGameState相当の直接評価オブジェクトを
+        # 渡された場合は、その値をそのまま評価する。通常の探索結果は上の
+        # Game分岐を通るため、本番の探索経路には影響しない。
         if hasattr(game, "value"):
             return evaluate_state(game, player_id)
         return evaluate_state(game.state, player_id)
