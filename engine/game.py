@@ -58,6 +58,17 @@ class Game:
         player.active_character.remove_expired_statuses()
         return amount, element
 
+    def _modify_action_cost(self, action: Action, cost: dict[DiceType, int]) -> dict[DiceType, int]:
+        """現在の状態に存在するStatusでActionコストを変更する。"""
+        player = self.state.players[action.player_id]
+        context = EffectContext(action.player_id, player.active_character_index)
+        modified = dict(cost)
+        for status in list(player.combat_statuses):
+            modified = dict(status.definition.modify_action_cost(status, action, modified, self, context))
+        for status in list(player.active_character.statuses):
+            modified = dict(status.definition.modify_action_cost(status, action, modified, self, context))
+        return {dice_type: amount for dice_type, amount in modified.items() if amount > 0}
+
     def change_energy(self, player_id: int, character_index: int, amount: int, reason: str) -> int:
         """Energyの増減をイベントとして解決し、実際に変化した値を返す。"""
         if player_id not in (0, 1):
@@ -210,20 +221,23 @@ class Game:
 
     def get_action_cost(self, action: Action) -> dict[DiceType, int]:
         if action.action_type is ActionType.SWITCH_CHARACTER:
-            return {DiceType.ANY: 1}
-        if action.action_type in {ActionType.NORMAL_ATTACK, ActionType.ELEMENTAL_SKILL, ActionType.ELEMENTAL_BURST}:
+            base_cost = {DiceType.ANY: 1}
+        elif action.action_type in {ActionType.NORMAL_ATTACK, ActionType.ELEMENTAL_SKILL, ActionType.ELEMENTAL_BURST}:
             character = self.state.players[action.player_id].active_character
             default_cost = {self._element_to_dice_type(character.element): 3}
             if action.action_type is ActionType.NORMAL_ATTACK:
-                return dict(getattr(character.definition, "normal_attack_cost", default_cost))
-            if action.action_type is ActionType.ELEMENTAL_SKILL:
-                return dict(getattr(character.definition, "elemental_skill_cost", default_cost))
-            return dict(getattr(character.definition, "elemental_burst_cost", default_cost))
-        if action.action_type is ActionType.PLAY_CARD:
+                base_cost = dict(getattr(character.definition, "normal_attack_cost", default_cost))
+            elif action.action_type is ActionType.ELEMENTAL_SKILL:
+                base_cost = dict(getattr(character.definition, "elemental_skill_cost", default_cost))
+            else:
+                base_cost = dict(getattr(character.definition, "elemental_burst_cost", default_cost))
+        elif action.action_type is ActionType.PLAY_CARD:
             if action.card_id is None:
                 return {}
-            return dict(self.card_registry.get(action.card_id).get_cost(self, action.player_id))
-        return {}
+            base_cost = dict(self.card_registry.get(action.card_id).get_cost(self, action.player_id))
+        else:
+            return {}
+        return self._modify_action_cost(action, base_cost)
 
     def _card_is_legal(self, player_id: int, card_id: str, target=None) -> bool:
         player = self.state.players[player_id]
@@ -388,148 +402,3 @@ class Game:
             raise ValueError("現在の状態ではそのカードを使用できません")
         player.dice.pay(cost)
         player.hand.remove(action.card_id)
-        event = CardActionEvent(action.player_id, action.card_id, action.target)
-        self._emit_event(event)
-        card.play(self, action.player_id, action.target)
-        event.resolved = True
-        self._emit_event(event)
-
-    def step(self, players: Sequence) -> Action:
-        if self.state.game_over:
-            raise ValueError("ゲーム終了後は合法手を取得できません")
-        if len(players) != 2:
-            raise ValueError("players must contain exactly two players")
-        player_id = self.state.current_player
-        legal_actions = self.get_legal_actions(player_id)
-        if not legal_actions:
-            raise ValueError("現在のプレイヤーに合法手がありません")
-        action = players[player_id].choose_action(self, player_id, legal_actions)
-        if not isinstance(action, Action):
-            raise TypeError("プレイヤーはActionを返す必要があります")
-        if action not in legal_actions:
-            raise ValueError("プレイヤーが合法手に含まれないActionを選択しました")
-        self.execute_action(action)
-        self.state.check_game_over()
-        return action
-
-    def run(self, players: Sequence, max_actions: int = 1000) -> list[Action]:
-        if len(players) != 2:
-            raise ValueError("players must contain exactly two players")
-        if max_actions < 1:
-            raise ValueError("max_actions must be positive")
-        actions = []
-        while not self.state.game_over and len(actions) < max_actions:
-            actions.append(self.step(players))
-        return actions
-
-    def _get_reroll_actions(self, player_id: int) -> list[Action]:
-        dice = self.state.players[player_id].dice.as_list()
-        return [Action(player_id, ActionType.REROLL_DICE, target=tuple(dice[index] for index in range(len(dice)) if mask & (1 << index))) for mask in range(1 << len(dice))]
-
-    def _execute_reroll(self, action: Action) -> None:
-        player = self.state.players[action.player_id]
-        if player.has_rerolled:
-            raise ValueError("このラウンドではすでにリロール済みです")
-        if not isinstance(action.target, tuple):
-            raise ValueError("リロール対象のダイスがタプルで指定されていません")
-        if any(not isinstance(dice_type, DiceType) or dice_type is DiceType.ANY for dice_type in action.target):
-            raise ValueError("リロール対象が不正です")
-        player.dice.reroll(Counter(action.target), self.rng)
-        player.has_rerolled = True
-        opponent_id = 1 - action.player_id
-        opponent = self.state.players[opponent_id]
-        if opponent.has_rerolled:
-            self.state.phase = GamePhase.ACTION
-            self.state.current_player = 0
-        else:
-            self.state.current_player = opponent_id
-
-    def _start_roll_phase(self) -> None:
-        self.state.phase = GamePhase.ROLL
-        self.state.current_player = 0
-        for player in self.state.players:
-            player.dice = DicePool.roll(self.rng)
-            player.has_rerolled = False
-
-    def _execute_switch(self, action: Action) -> None:
-        if action.target is None:
-            raise ValueError("交代先が指定されていません")
-        player = self.state.players[action.player_id]
-        if not isinstance(action.target, int) or not player.can_switch_to(action.target):
-            raise ValueError("交代先が不正です")
-        from_index = player.active_character_index
-        event = CharacterSwitchEvent(action.player_id, from_index, action.target)
-        self._emit_event(event)
-        player.switch_character(action.target)
-        event.resolved = True
-        self._emit_event(event)
-        if player.must_switch:
-            player.must_switch = False
-
-    def _require_and_pay_dice(self, action: Action) -> None:
-        cost = self.get_action_cost(action)
-        player = self.state.players[action.player_id]
-        if not player.dice.can_pay(cost):
-            raise ValueError("ダイスが不足しています")
-        player.dice.pay(cost)
-
-    def _execute_tuning(self, action: Action) -> None:
-        player = self.state.players[action.player_id]
-        if not isinstance(action.target, DiceType) or action.target is DiceType.ANY:
-            raise ValueError("変換先のダイス種別が不正です")
-        if action.target not in DicePool.ROLLABLE_DICE_TYPES:
-            raise ValueError("変換先に選択できないダイスです")
-        active_dice_type = self._element_to_dice_type(player.active_character.element)
-        if action.target is active_dice_type or action.target is DiceType.OMNI:
-            raise ValueError("変換先が不正です")
-        if player.dice.count(action.target) <= 0:
-            raise ValueError("変換元のダイスが不足しています")
-        player.dice.harmonize(action.target, active_dice_type)
-
-    def _end_round(self, player_id: int) -> None:
-        player = self.state.players[player_id]
-        player.has_ended_round = True
-        opponent = self.state.players[1 - player_id]
-        if opponent.has_ended_round:
-            self._resolve_end_of_round_effects()
-            if not self.state.game_over:
-                self._start_next_round()
-        else:
-            self.state.round_starter = player_id
-            self.state.current_player = 1 - player_id
-
-    def _resolve_end_of_round_effects(self) -> None:
-        for player_id in range(2):
-            self._emit_event(RoundEndEvent(player_id))
-            if self.state.game_over:
-                break
-        for player in self.state.players:
-            for character in player.characters:
-                character.remove_status("frozen")
-            player.remove_expired_combat_statuses()
-            player.remove_expired_summons()
-
-    def _start_next_round(self) -> None:
-        self.state.round_number += 1
-        self.state.phase = GamePhase.ROLL
-        self.state.current_player = self.state.round_starter
-        for player in self.state.players:
-            player.has_ended_round = False
-            player.has_rerolled = False
-            player.dice = DicePool.roll(self.rng)
-
-    def _advance_turn(self, player_id: int):
-        self.state.current_player = 1 - player_id
-
-    @staticmethod
-    def _element_to_dice_type(element: Element) -> DiceType:
-        mapping = {Element.PYRO: DiceType.PYRO, Element.HYDRO: DiceType.HYDRO, Element.ANEMO: DiceType.ANEMO,
-                   Element.ELECTRO: DiceType.ELECTRO, Element.DENDRO: DiceType.DENDRO, Element.CRYO: DiceType.CRYO,
-                   Element.GEO: DiceType.GEO}
-        if element not in mapping:
-            raise ValueError("物理属性のキャラクターには専用ダイスがありません")
-        return mapping[element]
-
-
-def attacker_character_name(player) -> str:
-    return player.active_character.name
