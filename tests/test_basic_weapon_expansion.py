@@ -71,10 +71,16 @@ def test_basic_weapon_cards_match_all_weapon_types_and_cost_active_element():
 
 
 def test_basic_weapon_cards_reject_wrong_weapon_type():
+    expected = {
+        WhiteIronGreatsword: True,
+        WhiteTassel: False,
+        RavenBow: False,
+        MagicGuide: False,
+    }
     for card in (WhiteIronGreatsword(), WhiteTassel(), RavenBow(), MagicGuide()):
         game = make_game(ClaymoreCharacter())
         game.state.players[0].dice = DicePool({DiceType.PYRO: 2})
-        assert card.can_play(game, 0) is (card is WhiteIronGreatsword())
+        assert card.can_play(game, 0) is expected[type(card)]
 
 
 def test_basic_weapon_adds_one_damage_only_to_normal_attack():
