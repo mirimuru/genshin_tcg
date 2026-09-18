@@ -8,6 +8,7 @@ from engine.actions import Action, ActionType
 from engine.dice import DicePool
 
 
+DICE_POOL_CLASS = DicePool
 ROLLABLE_DICE_TYPES = DicePool.ROLLABLE_DICE_TYPES
 from engine.game import Game
 from engine.state import GamePhase, GameState
@@ -204,7 +205,7 @@ def simulate_reroll(game: Game, action: Action) -> list[ChanceOutcome[Game]]:
     outcomes = DicePool.roll_outcomes(selected_count)
     result = []
     for rolled_pool, probability in outcomes:
-        dice = DicePool(kept)
+        dice = DICE_POOL_CLASS(kept)
         for dice_type, count in rolled_pool._dice.items():
             dice.add(dice_type, count)
         simulated = copy_game(game)
