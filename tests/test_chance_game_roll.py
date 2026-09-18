@@ -38,11 +38,13 @@ def test_simulate_roll_only_changes_requested_player(monkeypatch):
 
     game = _make_game()
     opponent_dice = game.state.players[1].dice
+    opponent_snapshot = opponent_dice.as_list()
 
     outcome = simulate_roll(game, 0)[0].state
 
     assert outcome.state.players[0].dice.count(DiceType.GEO) == DicePool.DEFAULT_DICE
-    assert outcome.state.players[1].dice is opponent_dice
+    assert outcome.state.players[1].dice.as_list() == opponent_snapshot
+    assert outcome.state.players[1].dice is not opponent_dice
 
 
 def test_simulate_roll_rejects_invalid_player():
