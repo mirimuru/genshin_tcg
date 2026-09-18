@@ -4,13 +4,8 @@ from engine.events import NormalAttackEvent
 from engine.statuses import StatusInstance, WeaponEquipmentStatusDefinition
 
 
-class TravelerHandySwordStatus(WeaponEquipmentStatusDefinition):
-    """旅道の剣。装備キャラクターの与えるダメージを+1する。"""
-
-    status_id = "traveler_handy_sword"
-    name = "旅道の剣"
-    equipment_slot = "weapon"
-    weapon_type = "sword"
+class _BasicWeaponStatus(WeaponEquipmentStatusDefinition):
+    """通常攻撃のダメージを+1する標準武器状態。"""
 
     def on_event(self, instance, event, game, context):
         if (
@@ -27,23 +22,114 @@ class TravelerHandySwordStatus(WeaponEquipmentStatusDefinition):
         return amount, element
 
 
-class TravelerHandySword(WeaponCardDefinition):
-    """片手剣の武器カード「旅道の剣」。"""
+class TravelerHandySwordStatus(_BasicWeaponStatus):
+    """旅道の剣。"""
 
+    status_id = "traveler_handy_sword"
+    name = "旅道の剣"
+    weapon_type = "sword"
+
+
+class WhiteIronGreatswordStatus(_BasicWeaponStatus):
+    """白鉄の大剣。"""
+
+    status_id = "white_iron_greatsword"
+    name = "白鉄の大剣"
+    weapon_type = "claymore"
+
+
+class WhiteTasselStatus(_BasicWeaponStatus):
+    """白纓槍。"""
+
+    status_id = "white_tassel"
+    name = "白纓槍"
+    weapon_type = "polearm"
+
+
+class RavenBowStatus(_BasicWeaponStatus):
+    """鴉羽の弓。"""
+
+    status_id = "raven_bow"
+    name = "鴉羽の弓"
+    weapon_type = "bow"
+
+
+class MagicGuideStatus(_BasicWeaponStatus):
+    """魔導緒論。"""
+
+    status_id = "magic_guide"
+    name = "魔導緒論"
+    weapon_type = "catalyst"
+
+
+class _BasicWeaponCard(WeaponCardDefinition):
+    """通常攻撃+1型の星3武器カード共通実装。"""
+
+    def create_status(self):
+        return StatusInstance(self.status_definition)
+
+
+class TravelerHandySword(_BasicWeaponCard):
     card_id = "traveler_handy_sword"
     name = "旅道の剣"
     cost = {DiceType.ANY: 2}
     weapon_type = "sword"
+    status_definition = TravelerHandySwordStatus
 
-    def create_status(self):
-        return StatusInstance(TravelerHandySwordStatus)
+
+class WhiteIronGreatsword(_BasicWeaponCard):
+    card_id = "white_iron_greatsword"
+    name = "白鉄の大剣"
+    cost = {DiceType.ANY: 2}
+    weapon_type = "claymore"
+    status_definition = WhiteIronGreatswordStatus
+
+
+class WhiteTassel(_BasicWeaponCard):
+    card_id = "white_tassel"
+    name = "白纓槍"
+    cost = {DiceType.ANY: 2}
+    weapon_type = "polearm"
+    status_definition = WhiteTasselStatus
+
+
+class RavenBow(_BasicWeaponCard):
+    card_id = "raven_bow"
+    name = "鴉羽の弓"
+    cost = {DiceType.ANY: 2}
+    weapon_type = "bow"
+    status_definition = RavenBowStatus
+
+
+class MagicGuide(_BasicWeaponCard):
+    card_id = "magic_guide"
+    name = "魔導緒論"
+    cost = {DiceType.ANY: 2}
+    weapon_type = "catalyst"
+    status_definition = MagicGuideStatus
 
 
 TRAVELER_HANDY_SWORD = TravelerHandySword()
+WHITE_IRON_GREATSWORD = WhiteIronGreatsword()
+WHITE_TASSEL = WhiteTassel()
+RAVEN_BOW = RavenBow()
+MAGIC_GUIDE = MagicGuide()
 
 
 __all__ = [
     "TravelerHandySword",
     "TRAVELER_HANDY_SWORD",
     "TravelerHandySwordStatus",
+    "WhiteIronGreatsword",
+    "WHITE_IRON_GREATSWORD",
+    "WhiteIronGreatswordStatus",
+    "WhiteTassel",
+    "WHITE_TASSEL",
+    "WhiteTasselStatus",
+    "RavenBow",
+    "RAVEN_BOW",
+    "RavenBowStatus",
+    "MagicGuide",
+    "MAGIC_GUIDE",
+    "MagicGuideStatus",
 ]
