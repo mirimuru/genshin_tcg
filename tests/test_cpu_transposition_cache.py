@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from engine.actions import Action, ActionType
+from engine.state import Element, GamePhase
 from players.cpu import CpuPlayer
 
 
@@ -58,3 +59,15 @@ def test_search_cache_is_cleared_for_each_root_search():
     cpu._search_value(game, 0, 1, 0)
 
     assert ("stale",) not in cpu._search_cache
+
+
+def test_state_cache_key_handles_enum_members_without_recursion():
+    state = SimpleNamespace(
+        phase=GamePhase.ACTION,
+        element=Element.PYRO,
+    )
+
+    key = CpuPlayer._state_cache_key(state)
+
+    assert key[0] == "object"
+    assert key[2][0][0] == "element"
