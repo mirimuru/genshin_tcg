@@ -2,6 +2,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Callable, Generic, TypeVar
 from collections import Counter
+import random
 
 from engine.actions import Action, ActionType
 from engine.dice import DicePool
@@ -122,6 +123,42 @@ def simulate_round_roll(
                 )
             )
     return outcomes
+
+
+def sample_round_roll(
+    game: Game,
+    count: int | None = None,
+    samples: int = 64,
+    seed: int = 0,
+) -> list[ChanceOutcome[Game]]:
+    """両プレイヤーの次ラウンドダイスを有界サンプリングする。
+
+    8個のダイスを両者同時に全列挙すると、重複をまとめても非常に大きな
+    分岐数になるため、CPU探索では固定seedのMonte Carlo Chance Nodeを使用する。
+    各サンプルは独立なGameで、同じ確率を持つ。
+    """
+    if not isinstance(game, Game):
+        raise TypeError("game must be Game")
+    if count is None:
+        count = DEFAULT_ROLL_DICE
+    if count < 0:
+        raise ValueError("dice count must not be negative")
+    if samples <= 0:
+        raise ValueError("samples must be positive")
+
+    rng = random.Random(seed)
+    probability = 1.0 / samples
+    result: list[ChanceOutcome[Game]] = []
+    for _ in range(samples):
+        simulated = copy_game(game)
+        simulated.state.players[0].dice = DicePool.roll(rng, count)
+        simulated.state.players[1].dice = DicePool.roll(rng, count)
+        simulated.state.players[0].has_rerolled = False
+        simulated.state.players[1].has_rerolled = False
+        simulated.state.phase = GamePhase.ROLL
+        simulated.state.current_player = 0
+        result.append(ChanceOutcome(simulated, probability))
+    return result
 
 def simulate_reroll(game: Game, action: Action) -> list[ChanceOutcome[Game]]:
     """リロールActionを乱数なしのChance Nodeへ展開する。
