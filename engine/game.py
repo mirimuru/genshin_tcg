@@ -495,6 +495,7 @@ class Game:
             if not self.state.game_over:
                 self._start_next_round()
         else:
+            self.state.round_starter = player_id
             self.state.current_player = 1 - player_id
 
     def _resolve_end_of_round_effects(self) -> None:
@@ -511,7 +512,7 @@ class Game:
     def _start_next_round(self) -> None:
         self.state.round_number += 1
         self.state.phase = GamePhase.ROLL
-        self.state.current_player = 0
+        self.state.current_player = self.state.round_starter
         for player in self.state.players:
             player.has_ended_round = False
             player.has_rerolled = False
