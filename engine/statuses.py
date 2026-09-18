@@ -18,6 +18,10 @@ class StatusDefinition(ABC):
         """ダメージ確定前に量・元素を変更する。"""
         return amount, element
 
+    def modify_action_cost(self, instance, action, cost, game, context):
+        """Actionのダイスコストを確定前に変更する。"""
+        return cost
+
 
 class EquipmentStatusDefinition(StatusDefinition):
     """キャラクターに装備される状態効果の定義。"""
