@@ -1,7 +1,8 @@
 from types import SimpleNamespace
 
 from engine.actions import Action, ActionType
-from engine.dice import DiceType\nfrom engine.state import Element
+from engine.dice import DiceType
+from engine.state import Element
 from engine.simulation import ChanceOutcome
 from players.cpu import CpuPlayer
 
