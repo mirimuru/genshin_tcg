@@ -8,6 +8,8 @@ from engine.dice import DicePool
 from engine.game import Game
 from engine.state import GamePhase, GameState
 
+ROLLABLE_DICE_TYPES = DicePool.ROLLABLE_DICE_TYPES
+
 
 StateT = TypeVar("StateT")
 DEFAULT_ROLL_DICE = DicePool.DEFAULT_DICE
@@ -114,7 +116,7 @@ def simulate_reroll(game: Game, action: Action) -> list[ChanceOutcome[Game]]:
     selected = Counter(action.target)
     player = game.state.players[player_id]
     original = player.dice.as_list()
-    if any(dice_type not in DicePool.ROLLABLE_DICE_TYPES for dice_type in selected):
+    if any(dice_type not in ROLLABLE_DICE_TYPES for dice_type in selected):
         raise ValueError("reroll target contains invalid dice")
     if any(player.dice.count(dice_type) < count for dice_type, count in selected.items()):
         raise ValueError("reroll target exceeds owned dice")
