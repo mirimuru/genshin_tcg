@@ -42,6 +42,17 @@ class DicePool:
                 if count:
                     self._dice[dice_type] = count
 
+    def __len__(self) -> int:
+        return self.total
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, DicePool):
+            return NotImplemented
+        return self._dice == other._dice
+
+    def __repr__(self) -> str:
+        return f"DicePool({dict(self._dice)!r})"
+
     @classmethod
     def default(cls) -> "DicePool":
         """現在の簡易ルール用の初期ダイス8個を生成する。"""
