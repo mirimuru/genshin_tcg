@@ -71,3 +71,21 @@ def test_cpu_search_uses_chance_node_after_end_round():
 
     assert isinstance(value, float)
     assert cpu.last_search_nodes > 0
+
+
+def test_first_player_to_end_round_starts_next_round():
+    game = make_game()
+    game.state.phase = GamePhase.ACTION
+    game.state.current_player = 1
+
+    game.execute_action(Action(1, ActionType.END_ROUND))
+    assert game.state.phase is GamePhase.ACTION
+    assert game.state.round_starter == 1
+    assert game.state.current_player == 0
+
+    game.execute_action(Action(0, ActionType.END_ROUND))
+
+    assert game.state.round_number == 2
+    assert game.state.phase is GamePhase.ROLL
+    assert game.state.current_player == 1
+    assert game.state.round_starter == 1
