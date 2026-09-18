@@ -37,6 +37,8 @@ def make_game():
 
 def test_simulate_round_roll_expands_both_players_independently(monkeypatch):
     game = make_game()
+    game.state.players[0].dice = DicePool()
+    game.state.players[1].dice = DicePool()
 
     outcomes = simulate_round_roll(game, count=1)
 
