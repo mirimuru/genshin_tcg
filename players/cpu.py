@@ -10,6 +10,7 @@ class CpuPlayer:
 
     LOW_HP_THRESHOLD = 3
     SEARCH_DEPTH = 2
+    DEFAULT_MAX_SEARCH_NODES = 10_000
     ACTION_TIE_BREAK = {
         ActionType.ELEMENTAL_BURST: 4,
         ActionType.ELEMENTAL_SKILL: 3,
@@ -19,6 +20,19 @@ class CpuPlayer:
         ActionType.ELEMENTAL_TUNING: 0,
         ActionType.END_ROUND: -1,
     }
+
+    def __init__(self, search_depth=None, max_search_nodes=None):
+        self.search_depth = self.SEARCH_DEPTH if search_depth is None else search_depth
+        self.max_search_nodes = (
+            self.DEFAULT_MAX_SEARCH_NODES
+            if max_search_nodes is None
+            else max_search_nodes
+        )
+        if self.search_depth <= 0:
+            raise ValueError("search_depth must be positive")
+        if self.max_search_nodes <= 0:
+            raise ValueError("max_search_nodes must be positive")
+        self.last_search_nodes = 0
 
     def choose_action(self, game, player_id: int, legal_actions=None) -> Action:
         if legal_actions is None:
@@ -51,23 +65,84 @@ class CpuPlayer:
         return max(
             legal_actions,
             key=lambda action: (
-                self._evaluate_action(game, player_id, action, self.SEARCH_DEPTH),
+                self._evaluate_action(game, player_id, action, self.search_depth),
                 self.ACTION_TIE_BREAK.get(action.action_type, 0),
             ),
         )
 
-    @classmethod
-    def _evaluate_action(cls, game, player_id, action, depth=1) -> float:
-        """Actionを仮想実行し、相手の最善応答まで含めてCPU視点で評価する。"""
+    def _evaluate_action(self, game, player_id, action, depth=None) -> float:
+        """Actionを仮想実行し、指定深度まで相手の応答を含めて評価する。"""
+        if depth is None:
+            depth = self.search_depth
         simulated_game = simulate_action(game, action)
-        return cls._minimax(
+        self.last_search_nodes = 0
+        return self._search_value(
             simulated_game,
             player_id,
             1 - player_id,
             depth - 1,
-            alpha=float("-inf"),
-            beta=float("inf"),
         )
+
+    def _search_value(self, game, root_player_id, current_player_id, depth, alpha=float("-inf"), beta=float("inf")) -> float:
+        """ノード上限付きalpha-beta探索。ノード数はこの探索単位でリセットされる。"""
+        self.last_search_nodes = 0
+        return self._search_node(
+            game,
+            root_player_id,
+            current_player_id,
+            depth,
+            alpha,
+            beta,
+        )
+
+    def _search_node(self, game, root_player_id, current_player_id, depth, alpha, beta) -> float:
+        if self.last_search_nodes >= self.max_search_nodes:
+            return evaluate_state(game.state, root_player_id)
+        self.last_search_nodes += 1
+
+        if depth <= 0 or game.state.game_over:
+            return evaluate_state(game.state, root_player_id)
+
+        legal_actions = game.get_legal_actions(current_player_id)
+        if not legal_actions:
+            return evaluate_state(game.state, root_player_id)
+
+        if current_player_id == root_player_id:
+            value = float("-inf")
+            for action in legal_actions:
+                value = max(
+                    value,
+                    self._search_node(
+                        simulate_action(game, action),
+                        root_player_id,
+                        1 - current_player_id,
+                        depth - 1,
+                        alpha,
+                        beta,
+                    ),
+                )
+                alpha = max(alpha, value)
+                if alpha >= beta:
+                    break
+            return value
+
+        value = float("inf")
+        for action in legal_actions:
+            value = min(
+                value,
+                self._search_node(
+                    simulate_action(game, action),
+                    root_player_id,
+                    1 - current_player_id,
+                    depth - 1,
+                    alpha,
+                    beta,
+                ),
+            )
+            beta = min(beta, value)
+            if alpha >= beta:
+                break
+        return value
 
     @classmethod
     def _minimax(
@@ -79,7 +154,7 @@ class CpuPlayer:
         alpha=float("-inf"),
         beta=float("inf"),
     ) -> float:
-        """指定プレイヤー視点を固定したalpha-beta minimax探索を行う。"""
+        """後方互換用のalpha-beta minimax探索。"""
         if depth <= 0 or game.state.game_over:
             return evaluate_state(game.state, root_player_id)
 
