@@ -26,6 +26,7 @@ from content.cards.talents import (
 from content.cards.weapons import (
     MAGIC_GUIDE,
     RAVEN_BOW,
+    SACRIFICIAL_SWORD,
     TRAVELER_HANDY_SWORD,
     WHITE_IRON_GREATSWORD,
     WHITE_TASSEL,
@@ -33,6 +34,8 @@ from content.cards.weapons import (
     MagicGuideStatus,
     RavenBow,
     RavenBowStatus,
+    SacrificialSword,
+    SacrificialSwordStatus,
     TravelerHandySword,
     TravelerHandySwordStatus,
     WhiteIronGreatsword,
@@ -74,4 +77,7 @@ __all__ = [
     "MAGIC_GUIDE",
     "MagicGuide",
     "MagicGuideStatus",
+    "SACRIFICIAL_SWORD",
+    "SacrificialSword",
+    "SacrificialSwordStatus",
 ]
