@@ -31,6 +31,8 @@ class CpuPlayer:
             raise ValueError("search_depth must be positive")
         if self.max_search_nodes <= 0:
             raise ValueError("max_search_nodes must be positive")
+        if self.round_roll_samples <= 0:
+            raise ValueError("round_roll_samples must be positive")
         self.last_search_nodes = 0
 
     def choose_action(self, game, player_id: int, legal_actions=None) -> Action:
