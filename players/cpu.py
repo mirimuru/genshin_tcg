@@ -36,7 +36,7 @@ class CpuPlayer:
             legal_actions = game.get_legal_actions(player_id)
         if not legal_actions:
             return Action(player_id, ActionType.END_ROUND)
-        if game.state.phase is GamePhase.ROLL:
+        if getattr(game.state, "phase", None) is GamePhase.ROLL:
             return self._choose_reroll(game, player_id, legal_actions)
 
         switch_actions = [a for a in legal_actions if a.action_type is ActionType.SWITCH_CHARACTER]
@@ -60,7 +60,7 @@ class CpuPlayer:
         self.last_search_nodes = 0
         if (
             action.action_type is ActionType.END_ROUND
-            and simulated_game.state.phase is GamePhase.ROLL
+            and getattr(simulated_game.state, "phase", None) is GamePhase.ROLL
         ):
             return self._evaluate_round_roll(simulated_game, player_id, depth - 1)
         return self._search_value(simulated_game, player_id, 1 - player_id, depth - 1)
@@ -135,7 +135,7 @@ class CpuPlayer:
             lambda outcome: self._search_node(
                 outcome.state,
                 root_player_id,
-                outcome.state.state.current_player,
+                outcome.state.current_player,
                 depth - 1,
                 float("-inf"),
                 float("inf"),
@@ -274,9 +274,17 @@ class CpuPlayer:
 
     @staticmethod
     def _target_dice_type(game, player_id):
-        return game._element_to_dice_type(
-            game.state.players[player_id].active_character.element
-        )
+        element = game.state.players[player_id].active_character.element
+        mapping = {
+            "PYRO": DiceType.PYRO,
+            "HYDRO": DiceType.HYDRO,
+            "ANEMO": DiceType.ANEMO,
+            "ELECTRO": DiceType.ELECTRO,
+            "DENDRO": DiceType.DENDRO,
+            "CRYO": DiceType.CRYO,
+            "GEO": DiceType.GEO,
+        }
+        return mapping[element.name]
 
     @staticmethod
     def _best_switch_action(player, actions):
