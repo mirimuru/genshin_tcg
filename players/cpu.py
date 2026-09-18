@@ -2,7 +2,7 @@ from engine.actions import Action, ActionType
 from engine.dice import DiceType
 from engine.evaluation import evaluate_state
 from engine.simulation import expected_value, simulate_action, simulate_reroll, simulate_roll
-from engine.state import GamePhase
+from engine.state import Element, GamePhase
 
 
 class CpuPlayer:
@@ -36,7 +36,7 @@ class CpuPlayer:
             legal_actions = game.get_legal_actions(player_id)
         if not legal_actions:
             return Action(player_id, ActionType.END_ROUND)
-        if game.state.phase is GamePhase.ROLL:
+        if getattr(game.state, "phase", None) is GamePhase.ROLL:
             return self._choose_reroll(game, player_id, legal_actions)
 
         switch_actions = [a for a in legal_actions if a.action_type is ActionType.SWITCH_CHARACTER]
@@ -114,7 +114,7 @@ class CpuPlayer:
             lambda outcome: self._search_node(
                 outcome.state,
                 root_player_id,
-                outcome.state.state.current_player,
+                outcome.state.current_player,
                 depth - 1,
                 float("-inf"),
                 float("inf"),
@@ -253,9 +253,16 @@ class CpuPlayer:
 
     @staticmethod
     def _target_dice_type(game, player_id):
-        return game._element_to_dice_type(
-            game.state.players[player_id].active_character.element
-        )
+        element = game.state.players[player_id].active_character.element
+        return {
+            Element.PYRO: DiceType.PYRO,
+            Element.HYDRO: DiceType.HYDRO,
+            Element.ANEMO: DiceType.ANEMO,
+            Element.ELECTRO: DiceType.ELECTRO,
+            Element.DENDRO: DiceType.DENDRO,
+            Element.CRYO: DiceType.CRYO,
+            Element.GEO: DiceType.GEO,
+        }.get(element)
 
     @staticmethod
     def _best_switch_action(player, actions):
