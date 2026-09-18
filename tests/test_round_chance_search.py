@@ -3,7 +3,7 @@ import pytest
 from engine.actions import Action, ActionType
 from engine.dice import DicePool, DiceType
 from engine.game import Game
-from engine.simulation import simulate_round_roll
+from engine.simulation import ChanceOutcome, simulate_round_roll
 from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
 from players.cpu import CpuPlayer
 
@@ -91,3 +91,36 @@ def test_first_player_to_end_round_starts_next_round():
     assert game.state.phase is GamePhase.ROLL
     assert game.state.current_player == 1
     assert game.state.round_starter == 1
+
+
+def test_cpu_round_roll_chance_recurses_into_reroll_and_action_search(monkeypatch):
+    game = make_game()
+    first = make_game()
+    second = make_game()
+    first.state.phase = GamePhase.ROLL
+    second.state.phase = GamePhase.ROLL
+
+    monkeypatch.setattr(
+        "players.cpu.sample_round_roll",
+        lambda _game, samples=64: [
+            ChanceOutcome(first, 0.25),
+            ChanceOutcome(second, 0.75),
+        ],
+    )
+
+    calls = []
+
+    def fake_search(game_state, root_player_id, current_player_id, depth, alpha, beta):
+        calls.append((game_state, root_player_id, current_player_id, depth))
+        return 10.0 if game_state is first else 20.0
+
+    cpu = CpuPlayer(search_depth=3, round_roll_samples=2)
+    monkeypatch.setattr(cpu, "_search_node", fake_search)
+
+    value = cpu._evaluate_round_roll(game, 0, depth=3)
+
+    assert value == pytest.approx(17.5)
+    assert calls == [
+        (first, 0, first.state.current_player, 2),
+        (second, 0, second.state.current_player, 2),
+    ]

@@ -12,6 +12,7 @@ class CpuPlayer:
     SEARCH_DEPTH = 2
     DEFAULT_MAX_SEARCH_NODES = 10_000
     MAX_REROLL_CANDIDATES = 16
+    ROUND_ROLL_SAMPLES = 64
     ACTION_TIE_BREAK = {
         ActionType.ELEMENTAL_BURST: 4,
         ActionType.ELEMENTAL_SKILL: 3,
@@ -22,13 +23,16 @@ class CpuPlayer:
         ActionType.END_ROUND: -1,
     }
 
-    def __init__(self, search_depth=None, max_search_nodes=None):
+    def __init__(self, search_depth=None, max_search_nodes=None, round_roll_samples=None):
         self.search_depth = self.SEARCH_DEPTH if search_depth is None else search_depth
         self.max_search_nodes = self.DEFAULT_MAX_SEARCH_NODES if max_search_nodes is None else max_search_nodes
+        self.round_roll_samples = self.ROUND_ROLL_SAMPLES if round_roll_samples is None else round_roll_samples
         if self.search_depth <= 0:
             raise ValueError("search_depth must be positive")
         if self.max_search_nodes <= 0:
             raise ValueError("max_search_nodes must be positive")
+        if self.round_roll_samples <= 0:
+            raise ValueError("round_roll_samples must be positive")
         self.last_search_nodes = 0
 
     def choose_action(self, game, player_id: int, legal_actions=None) -> Action:
@@ -75,10 +79,28 @@ class CpuPlayer:
         if depth <= 0 or game.state.game_over:
             return evaluate_state(game.state, player_id)
 
-        outcomes = sample_round_roll(game)
+        outcomes = sample_round_roll(game, samples=self.round_roll_samples)
         return expected_value(
             outcomes,
-            lambda state: evaluate_state(state.state, player_id),
+            lambda state: self._evaluate_round_roll_outcome(
+                state,
+                player_id,
+                depth,
+            ),
+        )
+
+    def _evaluate_round_roll_outcome(self, game, root_player_id, depth) -> float:
+        """次ラウンドRoll後のROLL/Reroll/Actionを探索する。"""
+        if depth <= 0 or getattr(getattr(game, "state", None), "game_over", False):
+            return evaluate_state(game.state, root_player_id)
+        current_player_id = getattr(game.state, "current_player", root_player_id)
+        return self._search_node(
+            game,
+            root_player_id,
+            current_player_id,
+            depth - 1,
+            float("-inf"),
+            float("inf"),
         )
 
     def _evaluate_chance_roll(self, game, player_id, depth=None) -> float:
@@ -168,6 +190,11 @@ class CpuPlayer:
             return evaluate_state(game.state, root_player_id)
 
         if getattr(game.state, "phase", None) is GamePhase.ROLL:
+            legal_actions = self._rank_reroll_actions(
+                game,
+                current_player_id,
+                legal_actions,
+            )
             if current_player_id == root_player_id:
                 value = float("-inf")
                 for action in legal_actions:
@@ -249,6 +276,25 @@ class CpuPlayer:
             if alpha >= beta:
                 break
         return value
+
+    def _rank_reroll_actions(self, game, player_id, legal_actions):
+        """探索中のリロール分岐を上位候補へ制限する。"""
+        target_dice_type = self._target_dice_type(game, player_id)
+
+        def heuristic(action):
+            selected = action.target or ()
+            non_matching = sum(
+                1
+                for dice_type in selected
+                if dice_type not in (DiceType.OMNI, target_dice_type)
+            )
+            matching = sum(
+                1 for dice_type in selected if dice_type is target_dice_type
+            )
+            omni = sum(1 for dice_type in selected if dice_type is DiceType.OMNI)
+            return (non_matching, -matching, -omni)
+
+        return sorted(legal_actions, key=heuristic, reverse=True)[: self.MAX_REROLL_CANDIDATES]
 
     def _choose_reroll(self, game, player_id, legal_actions) -> Action:
         """期待値を比較してリロールを選択する。
