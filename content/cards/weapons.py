@@ -1,6 +1,7 @@
+from engine.actions import ActionType
 from engine.cards import WeaponCardDefinition
 from engine.dice import DiceType
-from engine.events import NormalAttackEvent
+from engine.events import ElementalSkillEvent, NormalAttackEvent, ElementalBurstEvent
 from engine.statuses import StatusInstance, WeaponEquipmentStatusDefinition
 
 
@@ -62,6 +63,49 @@ class MagicGuideStatus(_BasicWeaponStatus):
     weapon_type = "catalyst"
 
 
+class SacrificialSwordStatus(WeaponEquipmentStatusDefinition):
+    """祭礼の剣。元素スキル後、同キャラクターの次の攻撃系Actionを1ダイス軽減する。"""
+
+    status_id = "sacrificial_sword"
+    name = "祭礼の剣"
+    weapon_type = "sword"
+
+    def on_event(self, instance, event, game, context):
+        if (
+            isinstance(event, ElementalSkillEvent)
+            and event.resolved
+            and event.player_id == context.owner_id
+            and event.character_index == context.character_index
+        ):
+            instance.data["next_action_discount"] = True
+        elif (
+            instance.data.get("next_action_discount", False)
+            and event.player_id == context.owner_id
+            and event.character_index == context.character_index
+            and not event.resolved
+            and isinstance(event, (NormalAttackEvent, ElementalSkillEvent, ElementalBurstEvent))
+        ):
+            instance.data["next_action_discount"] = False
+
+    def modify_action_cost(self, instance, action, cost, game, context):
+        if not instance.data.get("next_action_discount", False):
+            return cost
+        if action.player_id != context.owner_id:
+            return cost
+        if action.action_type not in {
+            ActionType.NORMAL_ATTACK,
+            ActionType.ELEMENTAL_SKILL,
+            ActionType.ELEMENTAL_BURST,
+        }:
+            return cost
+        modified = dict(cost)
+        for dice_type, amount in modified.items():
+            if dice_type is not DiceType.ANY and amount > 0:
+                modified[dice_type] = amount - 1
+                break
+        return modified
+
+
 class _BasicWeaponCard(WeaponCardDefinition):
     """通常攻撃+1型の星3武器カード共通実装。"""
 
@@ -109,11 +153,20 @@ class MagicGuide(_BasicWeaponCard):
     status_definition = MagicGuideStatus
 
 
+class SacrificialSword(_BasicWeaponCard):
+    card_id = "sacrificial_sword"
+    name = "祭礼の剣"
+    cost = {DiceType.ANY: 3}
+    weapon_type = "sword"
+    status_definition = SacrificialSwordStatus
+
+
 TRAVELER_HANDY_SWORD = TravelerHandySword()
 WHITE_IRON_GREATSWORD = WhiteIronGreatsword()
 WHITE_TASSEL = WhiteTassel()
 RAVEN_BOW = RavenBow()
 MAGIC_GUIDE = MagicGuide()
+SACRIFICIAL_SWORD = SacrificialSword()
 
 
 __all__ = [
@@ -132,4 +185,7 @@ __all__ = [
     "MagicGuide",
     "MAGIC_GUIDE",
     "MagicGuideStatus",
+    "SacrificialSword",
+    "SACRIFICIAL_SWORD",
+    "SacrificialSwordStatus",
 ]
