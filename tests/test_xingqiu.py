@@ -1,9 +1,7 @@
 from content.characters.xingqiu import RAIN_SWORD_ID, XINGQIU, Xingqiu
-from engine.actions import Action, ActionType
 from engine.dice import DicePool, DiceType
-from engine.events import ElementalBurstEvent, ElementalSkillEvent, NormalAttackEvent
 from engine.game import Game
-from engine.state import CharacterState, Element, GameState, PlayerState
+from engine.state import CharacterState, Element, GamePhase, GameState, PlayerState
 
 
 def make_game():
@@ -13,7 +11,7 @@ def make_game():
     ]
     game = Game(GameState(players))
     game.state.phase = GamePhase.ACTION
-    game.state.active_player_id = 0
+    game.state.current_player = 0
     game.state.players[0].dice = DicePool({DiceType.HYDRO: 4})
     return game
 
@@ -54,8 +52,8 @@ def test_rain_sword_triggers_on_next_normal_attack_and_consumes_usage():
 def test_rain_sword_does_not_trigger_on_other_player_attack():
     game = make_game()
     game.state.players[0].add_combat_status(Xingqiu.rain_sword())
-    game.state.active_player_id = 1
 
+    game.state.current_player = 1
     game.normal_attack(1)
 
     rain_sword = game.state.players[0].get_combat_status(RAIN_SWORD_ID)
