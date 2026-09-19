@@ -45,7 +45,34 @@
 | CPUによるダイスChance Node期待値評価 | 実装済み |
 | 確率的Game結果をCPU探索へ統合 | 実装済み（ダイスロール・リロール・次ラウンドロール） |
 | CPU探索Transposition Table | 実装済み |
-| GUI・対戦画面 | 未実装 |
+| デバッグGUI | Phase 1実装済み |
+| GUI・完成版対戦画面 | 未実装 |
+
+## デバッグGUI
+
+Tkinterを利用した検証用GUIを追加しています。完成版のゲームUIではなく、既存の `Game` / `GameState` / `Action` を使ってルールを手動確認するためのクライアントです。GUI専用の外部依存は追加していません。
+
+プロジェクトルートから以下で起動できます。
+
+```powershell
+python run_gui.py
+```
+
+Phase 1では以下を確認できます。
+
+- Round / Phase / Current Player
+- 両プレイヤーのキャラクター名・元素・HP・Energy・元素付着
+- ダイス
+- Character Status、Combat Status、Summonの表示
+- 現在の合法Action一覧
+- ActionのTarget / Cost / Legal状態
+- 既存の `Game.execute_action()` を通したAction実行
+- Actionで発生したイベントの時系列ログ
+- 新しいゲームの開始
+
+GUIのControllerはゲームルールを複製せず、既存の合法Action生成・合法性検証・Action実行経路を利用します。イベントログはGUI側の `DebugGame` ラッパーで既存イベント通知を記録します。
+
+将来のPhase 2ではカード・CPU探索・詳細Status表示、Phase 3ではデバッグ状態の編集・JSON保存などを追加する予定です。
 
 ## キャラクターDefinition
 
@@ -127,26 +154,7 @@
 
 探索はAlpha-Beta枝刈りを使用します。また `max_search_nodes` によって1回のAction評価で探索するノード数の上限を設定できます。深い探索を利用する場合でも、ノード上限によって計算量を制御できます。
 
-```text
-自分の合法手
-    │
-    ├─ Action A ── simulate ── 相手の応答 ── 自分の応答 ...
-    ├─ Action B ── simulate ── 相手の応答 ── 自分の応答 ...
-    ├─ Action C ── simulate ── 相手の応答 ── 自分の応答 ...
-    │                 │
-    │                 └─ Alpha-Betaで不要な枝を削除
-    │
-    └─ 探索ノード上限で計算量を制御
-              │
-              ▼
-       evaluate_state()
-```
-
-探索では指定したCPUプレイヤーの評価視点を末端まで固定します。これにより、相手側の評価値をそのまま最大化する誤りを避けています。
-
-確率結果の共通基盤として `ChanceOutcome` / `expected_value()` を追加し、さらに実際のダイスロールを `simulate_roll()` から確率的Game状態へ展開できるようにしました。現在は `CpuPlayer._evaluate_chance_roll()` が各ダイス結果を探索へ渡し、確率で重み付けした期待評価値を計算できます。さらに、リロールActionも `simulate_reroll()` によってChance Node化し、CPUが複数のリロール候補を期待値で比較できます。次ラウンド開始時の両プレイヤーのダイス生成についても `simulate_round_roll()` で完全な確率結果を列挙でき、CPU探索では `sample_round_roll()` による固定seedの有界サンプリングを利用します。また、ラウンド終了を先に宣言したプレイヤーを次ラウンドの開始プレイヤーとして保持します。`END_ROUND → 次ラウンドRoll Chance → Reroll Chance → Action` までをCPU探索から再帰的に評価できるようにし、次ラウンドRoll後の各結果を現在手番から探索へ接続します。Roll後のリロール候補は上位16件に制限し、`round_roll_samples`（既定64）と`max_search_nodes`で分岐数を制御します。8個のダイスを両者同時に完全列挙した際の巨大な分岐数は、CPU探索では固定seedの有界サンプリングによって抑えています。
-
-さらに探索中の同一状態を再利用するTransposition Tableを追加しました。状態の可変データを再帰的に正規化したキーに、root player、現在手番、探索深度を組み合わせ、同じ条件の探索結果を再利用します。Alpha-Betaで探索窓が狭められた途中結果はキャッシュせず、完全探索窓の結果だけを保存することで、下限・上限の値を確定値として誤利用しないようにしています。リロールChance Nodeと次ラウンドRoll Chance Nodeについても、状態・深度・対象プレイヤー・設定値・Actionを含むキーで期待値をキャッシュします。各ルート探索開始時にはキャッシュをクリアし、異なる盤面の探索結果が混ざらないようにしています。
+さらに探索中の同一状態を再利用するTransposition Tableを追加しました。状態の可変データを再帰的に正規化したキーに、root player、現在手番、探索深度を組み合わせ、同じ条件の探索結果を再利用します。Alpha-Betaで探索窓が狭められた途中結果はキャッシュせず、完全探索窓の結果だけを保存します。リロールChance Nodeと次ラウンドRoll Chance Nodeについても、状態・深度・対象プレイヤー・設定値・Actionを含むキーで期待値をキャッシュします。各ルート探索開始時にはキャッシュをクリアし、異なる盤面の探索結果が混ざらないようにしています。
 
 ## ラウンド進行
 
@@ -161,4 +169,4 @@
 python -m pytest
 ```
 
-現在、298件のテストが全件成功しています。`tests/test_xingqiu.py` に行秋・雨すだれの剣の回帰テストを追加し、既存機能を含めた回帰確認を継続しています。pytestの警告は `TestState` が `__init__` を持つことによる `PytestCollectionWarning` が1件残っています。
+GUI追加前の回帰テストは298件が全件成功しており、GUI用テストを追加しています。pytestの警告は `TestState` が `__init__` を持つことによる `PytestCollectionWarning` が1件残っています。
