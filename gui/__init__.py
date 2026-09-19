@@ -1,6 +1,3 @@
-"""七聖召喚デバッグGUI。"""
+"""七聖召喚デバッグGUIパッケージ。"""
 
-from gui.app import DebugApp
-from gui.game_view import GuiController
-
-__all__ = ["DebugApp", "GuiController"]
+__all__ = []
