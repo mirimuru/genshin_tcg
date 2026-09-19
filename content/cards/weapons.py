@@ -24,51 +24,37 @@ class _BasicWeaponStatus(WeaponEquipmentStatusDefinition):
 
 
 class TravelerHandySwordStatus(_BasicWeaponStatus):
-    """旅道の剣。"""
-
     status_id = "traveler_handy_sword"
     name = "旅道の剣"
     weapon_type = "sword"
 
 
 class WhiteIronGreatswordStatus(_BasicWeaponStatus):
-    """白鉄の大剣。"""
-
     status_id = "white_iron_greatsword"
     name = "白鉄の大剣"
     weapon_type = "claymore"
 
 
 class WhiteTasselStatus(_BasicWeaponStatus):
-    """白纓槍。"""
-
     status_id = "white_tassel"
     name = "白纓槍"
     weapon_type = "polearm"
 
 
 class RavenBowStatus(_BasicWeaponStatus):
-    """鴉羽の弓。"""
-
     status_id = "raven_bow"
     name = "鴉羽の弓"
     weapon_type = "bow"
 
 
 class MagicGuideStatus(_BasicWeaponStatus):
-    """魔導緒論。"""
-
     status_id = "magic_guide"
     name = "魔導緒論"
     weapon_type = "catalyst"
 
 
-class SacrificialSwordStatus(WeaponEquipmentStatusDefinition):
-    """祭礼の剣。元素スキル後、同キャラクターの次の攻撃系Actionを1ダイス軽減する。"""
-
-    status_id = "sacrificial_sword"
-    name = "祭礼の剣"
-    weapon_type = "sword"
+class _SacrificialWeaponStatus(WeaponEquipmentStatusDefinition):
+    """元素スキル後、同キャラクターの次の攻撃系Actionを1ダイス軽減する祭礼武器共通状態。"""
 
     def on_event(self, instance, event, game, context):
         if (
@@ -104,6 +90,30 @@ class SacrificialSwordStatus(WeaponEquipmentStatusDefinition):
                 modified[dice_type] = amount - 1
                 break
         return modified
+
+
+class SacrificialSwordStatus(_SacrificialWeaponStatus):
+    status_id = "sacrificial_sword"
+    name = "祭礼の剣"
+    weapon_type = "sword"
+
+
+class SacrificialGreatswordStatus(_SacrificialWeaponStatus):
+    status_id = "sacrificial_greatsword"
+    name = "祭礼の大剣"
+    weapon_type = "claymore"
+
+
+class SacrificialBowStatus(_SacrificialWeaponStatus):
+    status_id = "sacrificial_bow"
+    name = "祭礼の弓"
+    weapon_type = "bow"
+
+
+class SacrificialFragmentsStatus(_SacrificialWeaponStatus):
+    status_id = "sacrificial_fragments"
+    name = "祭礼の断片"
+    weapon_type = "catalyst"
 
 
 class _BasicWeaponCard(WeaponCardDefinition):
@@ -161,31 +171,49 @@ class SacrificialSword(_BasicWeaponCard):
     status_definition = SacrificialSwordStatus
 
 
+class SacrificialGreatsword(_BasicWeaponCard):
+    card_id = "sacrificial_greatsword"
+    name = "祭礼の大剣"
+    cost = {DiceType.ANY: 3}
+    weapon_type = "claymore"
+    status_definition = SacrificialGreatswordStatus
+
+
+class SacrificialBow(_BasicWeaponCard):
+    card_id = "sacrificial_bow"
+    name = "祭礼の弓"
+    cost = {DiceType.ANY: 3}
+    weapon_type = "bow"
+    status_definition = SacrificialBowStatus
+
+
+class SacrificialFragments(_BasicWeaponCard):
+    card_id = "sacrificial_fragments"
+    name = "祭礼の断片"
+    cost = {DiceType.ANY: 3}
+    weapon_type = "catalyst"
+    status_definition = SacrificialFragmentsStatus
+
+
 TRAVELER_HANDY_SWORD = TravelerHandySword()
 WHITE_IRON_GREATSWORD = WhiteIronGreatsword()
 WHITE_TASSEL = WhiteTassel()
 RAVEN_BOW = RavenBow()
 MAGIC_GUIDE = MagicGuide()
 SACRIFICIAL_SWORD = SacrificialSword()
+SACRIFICIAL_GREATSWORD = SacrificialGreatsword()
+SACRIFICIAL_BOW = SacrificialBow()
+SACRIFICIAL_FRAGMENTS = SacrificialFragments()
 
 
 __all__ = [
-    "TravelerHandySword",
-    "TRAVELER_HANDY_SWORD",
-    "TravelerHandySwordStatus",
-    "WhiteIronGreatsword",
-    "WHITE_IRON_GREATSWORD",
-    "WhiteIronGreatswordStatus",
-    "WhiteTassel",
-    "WHITE_TASSEL",
-    "WhiteTasselStatus",
-    "RavenBow",
-    "RAVEN_BOW",
-    "RavenBowStatus",
-    "MagicGuide",
-    "MAGIC_GUIDE",
-    "MagicGuideStatus",
-    "SacrificialSword",
-    "SACRIFICIAL_SWORD",
-    "SacrificialSwordStatus",
+    "TravelerHandySword", "TRAVELER_HANDY_SWORD", "TravelerHandySwordStatus",
+    "WhiteIronGreatsword", "WHITE_IRON_GREATSWORD", "WhiteIronGreatswordStatus",
+    "WhiteTassel", "WHITE_TASSEL", "WhiteTasselStatus",
+    "RavenBow", "RAVEN_BOW", "RavenBowStatus",
+    "MagicGuide", "MAGIC_GUIDE", "MagicGuideStatus",
+    "SacrificialSword", "SACRIFICIAL_SWORD", "SacrificialSwordStatus",
+    "SacrificialGreatsword", "SACRIFICIAL_GREATSWORD", "SacrificialGreatswordStatus",
+    "SacrificialBow", "SACRIFICIAL_BOW", "SacrificialBowStatus",
+    "SacrificialFragments", "SACRIFICIAL_FRAGMENTS", "SacrificialFragmentsStatus",
 ]
