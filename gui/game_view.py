@@ -3,6 +3,7 @@
 import random
 from typing import Callable
 
+from engine.events import RoundEndEvent
 from engine.game import Game
 from engine.state import GameState, PlayerState
 from gui.debug_state import ActionView, StateSnapshot, legal_action_views, snapshot_state
@@ -19,6 +20,20 @@ class DebugGame(Game):
     def _emit_event(self, event):
         self._debug_event_log.record(event)
         super()._emit_event(event)
+
+    def _end_round(self, player_id: int) -> None:
+        """GUIではラウンド終了宣言も追跡できるようにする。
+
+        通常のGameではRoundEndEventは両プレイヤーが終了を宣言した後の
+        解決時にだけ発行される。そのためGUIで最初のEND_ROUND操作を
+        行った時点でも人間が操作履歴を追えるよう、まだ相手が終了して
+        いない場合だけログへ記録する。実際の解決時のイベントは
+        Game._resolve_end_of_round_effects() が従来どおり発行する。
+        """
+        opponent = self.state.players[1 - player_id]
+        if not opponent.has_ended_round:
+            self._debug_event_log.record(RoundEndEvent(player_id))
+        super()._end_round(player_id)
 
 
 class GuiController:
